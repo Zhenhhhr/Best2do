@@ -1,0 +1,17 @@
+{
+  "name": "best2do-cloud-sync-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Best2do cloud sync backend for Aliyun",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "dependencies": {
+    "ali-oss": "^6.22.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
