@@ -7,7 +7,12 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "5mb" }));
 
-const PORT = Number(process.env.PORT || 3000);
+const PORT = Number(
+  process.env.PORT ||
+  process.env.FC_SERVER_PORT ||
+  process.env.SERVER_PORT ||
+  3000
+);
 const JWT_SECRET = process.env.JWT_SECRET || "change-this-secret";
 
 function requiredEnv(name) {
@@ -23,21 +28,41 @@ const ossClient = new OSS({
   accessKeySecret: requiredEnv("ALIYUN_ACCESS_KEY_SECRET")
 });
 
-let authUsers = [];
+let seedUsers = [];
 try {
-  authUsers = JSON.parse(process.env.AUTH_USERS_JSON || "[]");
-  if (!Array.isArray(authUsers)) authUsers = [];
+  seedUsers = JSON.parse(process.env.AUTH_USERS_JSON || "[]");
+  if (!Array.isArray(seedUsers)) seedUsers = [];
 } catch (e) {
-  authUsers = [];
+  seedUsers = [];
+}
+
+const USERS_OSS_KEY = "best2do/users.json";
+
+async function loadRegisteredUsers() {
+  try {
+    const result = await ossClient.get(USERS_OSS_KEY);
+    return JSON.parse(result.content.toString("utf-8"));
+  } catch (e) {
+    return [];
+  }
+}
+
+async function saveRegisteredUsers(users) {
+  await ossClient.put(USERS_OSS_KEY, Buffer.from(JSON.stringify(users)), {
+    headers: { "Content-Type": "application/json; charset=utf-8" }
+  });
 }
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
 
-function userObject(email) {
+async function userObject(email) {
   const e = normalizeEmail(email);
-  return authUsers.find((u) => normalizeEmail(u.email) === e) || null;
+  const seed = seedUsers.find((u) => normalizeEmail(u.email) === e);
+  if (seed) return seed;
+  const registered = await loadRegisteredUsers();
+  return registered.find((u) => normalizeEmail(u.email) === e) || null;
 }
 
 function makeToken(user) {
@@ -103,14 +128,41 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "best2do-cloud-sync" });
 });
 
-app.post("/auth/login", (req, res) => {
+app.post("/auth/register", async (req, res) => {
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  const name = String(req.body?.name || email);
+  if (!email || !password) {
+    return res.status(400).json({ error: "email and password required" });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: "password must be at least 6 characters" });
+  }
+
+  const existing = await userObject(email);
+  if (existing) {
+    return res.status(409).json({ error: "email already registered" });
+  }
+
+  const registered = await loadRegisteredUsers();
+  registered.push({ email, password, name, createdAt: new Date().toISOString() });
+  await saveRegisteredUsers(registered);
+
+  const token = makeToken({ email, name });
+  return res.json({
+    token,
+    user: { email, name }
+  });
+});
+
+app.post("/auth/login", async (req, res) => {
   const email = normalizeEmail(req.body?.email);
   const password = String(req.body?.password || "");
   if (!email || !password) {
     return res.status(400).json({ error: "email and password required" });
   }
 
-  const user = userObject(email);
+  const user = await userObject(email);
   if (!user || String(user.password || "") !== password) {
     return res.status(401).json({ error: "invalid credentials" });
   }
