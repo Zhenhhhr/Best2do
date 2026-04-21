@@ -1016,9 +1016,12 @@ const App = {
       });
       this.state.settings.cloudToken = data.token || '';
       this.state.settings.cloudEmail = email;
+      this.state.settings.cloudEnabled = true;
+      document.getElementById('settingsCloudEnabled').checked = true;
       this.saveState();
       this.updateCloudStatus(data.user ? `已登录 ${data.user.email || email}` : `已登录 ${email}`);
-      this.showToast('云端登录成功');
+      this.showToast('云端登录成功，正在同步数据...');
+      await this.syncDownFromCloud();
     } catch (e) {
       this.updateCloudStatus('登录失败');
       this.showToast(e.message);
