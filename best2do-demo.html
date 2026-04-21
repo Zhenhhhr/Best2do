@@ -640,6 +640,32 @@ textarea{resize:vertical}
               <option value="运营">运营</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>云端 API 地址（阿里云函数/API网关）</label>
+            <input type="text" id="settingsCloudBaseUrl" placeholder="例如：https://xxx.cn-hangzhou.fcapp.run">
+            <div class="form-hint">你的后端需提供：POST /auth/login、GET /sync、POST /sync</div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px">
+              <input type="checkbox" id="settingsCloudEnabled" style="width:auto">
+              启用云端同步
+            </label>
+            <div class="form-hint">启用后：本地保存同时会异步同步到云端</div>
+          </div>
+          <div class="form-group">
+            <label>云端账号（邮箱）</label>
+            <input type="email" id="settingsCloudEmail" placeholder="you@example.com">
+          </div>
+          <div class="form-group">
+            <label>云端密码</label>
+            <input type="password" id="settingsCloudPassword" placeholder="输入密码后点击登录">
+          </div>
+          <div class="form-group" style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn-secondary" onclick="App.cloudLogin()">登录云端</button>
+            <button class="btn-secondary" onclick="App.syncDownFromCloud()">从云端拉取</button>
+            <button class="btn-secondary" onclick="App.syncUpToCloud()">上传本地到云端</button>
+          </div>
+          <div class="form-hint" id="cloudSyncStatus">云端状态：未登录</div>
           <button class="btn-primary" onclick="App.saveSettings()">保存设置</button>
         </div>
       </div>
@@ -792,7 +818,11 @@ const App = {
     settings: {
       apiKey: 'sk-c4eb4f9b54f64e93b837bcb895fa5c60',
       model: 'qwen3.6-plus',
-      role: '产品经理'
+      role: '产品经理',
+      cloudEnabled: false,
+      cloudBaseUrl: '',
+      cloudEmail: '',
+      cloudToken: ''
     },
     uploadedFiles: [],
     projImportFiles: [],
@@ -812,6 +842,9 @@ const App = {
     this.applySettings();
     this.updateGenBtnState();
     this.updateGreeting();
+    if (this.state.settings.cloudEnabled && this.state.settings.cloudToken && this.getCloudBaseUrl()) {
+      this.syncDownFromCloud();
+    }
 
     const todayTextarea = document.getElementById('todayInput');
     todayTextarea.addEventListener('keydown', (e) => {
@@ -887,6 +920,150 @@ const App = {
     keys.forEach(k => {
       localStorage.setItem('best2do_' + k, JSON.stringify(this.state[k]));
     });
+    this.queueCloudSync();
+  },
+
+  // ===== CLOUD SYNC (Aliyun backend API) =====
+  getCloudBaseUrl() {
+    return (this.state.settings.cloudBaseUrl || '').trim().replace(/\/+$/, '');
+  },
+
+  updateCloudStatus(msg) {
+    const el = document.getElementById('cloudSyncStatus');
+    if (el) el.textContent = `云端状态：${msg}`;
+  },
+
+  cloudHeaders(withJson = true) {
+    const headers = {};
+    if (withJson) headers['Content-Type'] = 'application/json';
+    if (this.state.settings.cloudToken) headers['Authorization'] = `Bearer ${this.state.settings.cloudToken}`;
+    return headers;
+  },
+
+  async cloudRequest(path, options = {}) {
+    const baseUrl = this.getCloudBaseUrl();
+    if (!baseUrl) throw new Error('请先在设置中填写云端 API 地址');
+    const resp = await fetch(baseUrl + path, options);
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error(`云端接口错误(${resp.status}) ${text}`);
+    }
+    return resp.status === 204 ? null : resp.json();
+  },
+
+  getStatePayload() {
+    return {
+      todos: this.state.todos,
+      projects: this.state.projects,
+      reviews: this.state.reviews,
+      knowhow: this.state.knowhow,
+      settings: {
+        model: this.state.settings.model,
+        role: this.state.settings.role
+      },
+      scheduleArchives: JSON.parse(localStorage.getItem('best2do_schedule_archives') || '[]'),
+      dailyReports: JSON.parse(localStorage.getItem('best2do_daily_reports') || '[]')
+    };
+  },
+
+  async applyStatePayload(payload) {
+    if (!payload) return;
+    this.state.todos = payload.todos || [];
+    this.state.projects = payload.projects || [];
+    this.state.reviews = payload.reviews || [];
+    this.state.knowhow = payload.knowhow || [];
+    if (payload.settings) {
+      if (payload.settings.model) this.state.settings.model = payload.settings.model;
+      if (payload.settings.role) this.state.settings.role = payload.settings.role;
+    }
+    if (payload.scheduleArchives) localStorage.setItem('best2do_schedule_archives', JSON.stringify(payload.scheduleArchives));
+    if (payload.dailyReports) localStorage.setItem('best2do_daily_reports', JSON.stringify(payload.dailyReports));
+    const token = this.state.settings.cloudToken;
+    const cloudBaseUrl = this.state.settings.cloudBaseUrl;
+    const cloudEmail = this.state.settings.cloudEmail;
+    const cloudEnabled = this.state.settings.cloudEnabled;
+    this.saveState();
+    this.state.settings.cloudToken = token;
+    this.state.settings.cloudBaseUrl = cloudBaseUrl;
+    this.state.settings.cloudEmail = cloudEmail;
+    this.state.settings.cloudEnabled = cloudEnabled;
+    localStorage.setItem('best2do_settings', JSON.stringify(this.state.settings));
+    this.applySettings();
+    this.renderAll();
+  },
+
+  queueCloudSync() {
+    if (!this.state.settings.cloudEnabled || !this.state.settings.cloudToken || !this.getCloudBaseUrl()) return;
+    clearTimeout(this._cloudSyncTimer);
+    this._cloudSyncTimer = setTimeout(() => {
+      this.syncUpToCloud(true).catch(() => {});
+    }, 1000);
+  },
+
+  async cloudLogin() {
+    const email = (document.getElementById('settingsCloudEmail')?.value || '').trim();
+    const password = (document.getElementById('settingsCloudPassword')?.value || '').trim();
+    if (!email || !password) {
+      this.showToast('请填写云端邮箱和密码');
+      return;
+    }
+    try {
+      this.updateCloudStatus('登录中...');
+      const data = await this.cloudRequest('/auth/login', {
+        method: 'POST',
+        headers: this.cloudHeaders(),
+        body: JSON.stringify({ email, password })
+      });
+      this.state.settings.cloudToken = data.token || '';
+      this.state.settings.cloudEmail = email;
+      this.saveState();
+      this.updateCloudStatus(data.user ? `已登录 ${data.user.email || email}` : `已登录 ${email}`);
+      this.showToast('云端登录成功');
+    } catch (e) {
+      this.updateCloudStatus('登录失败');
+      this.showToast(e.message);
+    }
+  },
+
+  async syncDownFromCloud() {
+    if (!this.state.settings.cloudToken) { this.showToast('请先登录云端'); return; }
+    try {
+      this.updateCloudStatus('拉取中...');
+      const data = await this.cloudRequest('/sync', {
+        method: 'GET',
+        headers: this.cloudHeaders(false)
+      });
+      await this.applyStatePayload(data);
+      this.updateCloudStatus('云端拉取完成');
+      this.showToast('已从云端拉取最新数据');
+    } catch (e) {
+      this.updateCloudStatus('拉取失败');
+      this.showToast(e.message);
+    }
+  },
+
+  async syncUpToCloud(silent = false) {
+    if (!this.state.settings.cloudToken) {
+      if (!silent) this.showToast('请先登录云端');
+      return;
+    }
+    try {
+      if (!silent) this.updateCloudStatus('上传中...');
+      await this.cloudRequest('/sync', {
+        method: 'POST',
+        headers: this.cloudHeaders(),
+        body: JSON.stringify(this.getStatePayload())
+      });
+      if (!silent) {
+        this.updateCloudStatus('上传完成');
+        this.showToast('本地数据已上传云端');
+      }
+    } catch (e) {
+      if (!silent) {
+        this.updateCloudStatus('上传失败');
+        this.showToast(e.message);
+      }
+    }
   },
 
   // ===== NAVIGATION =====
@@ -924,13 +1101,20 @@ const App = {
     document.getElementById('settingsApiKey').value = s.apiKey || '';
     document.getElementById('settingsModel').value = s.model || 'qwen3.6-plus';
     document.getElementById('settingsRole').value = s.role || '产品经理';
+    document.getElementById('settingsCloudBaseUrl').value = s.cloudBaseUrl || '';
+    document.getElementById('settingsCloudEnabled').checked = !!s.cloudEnabled;
+    document.getElementById('settingsCloudEmail').value = s.cloudEmail || '';
     document.getElementById('topbarRole').textContent = s.role || '产品经理';
+    this.updateCloudStatus(s.cloudToken ? `已登录 ${s.cloudEmail || ''}` : '未登录');
   },
 
   saveSettings() {
     this.state.settings.apiKey = document.getElementById('settingsApiKey').value;
     this.state.settings.model = document.getElementById('settingsModel').value;
     this.state.settings.role = document.getElementById('settingsRole').value;
+    this.state.settings.cloudBaseUrl = document.getElementById('settingsCloudBaseUrl').value.trim();
+    this.state.settings.cloudEnabled = document.getElementById('settingsCloudEnabled').checked;
+    this.state.settings.cloudEmail = document.getElementById('settingsCloudEmail').value.trim();
     document.getElementById('topbarRole').textContent = this.state.settings.role;
     this.saveState();
     this.showToast('设置已保存');
