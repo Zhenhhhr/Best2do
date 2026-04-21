@@ -129,52 +129,60 @@ app.get("/health", (_req, res) => {
 });
 
 app.post("/auth/register", async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
-  const password = String(req.body?.password || "");
-  const name = String(req.body?.name || email);
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password required" });
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ error: "password must be at least 6 characters" });
-  }
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password || "");
+    const name = String(req.body?.name || email);
+    if (!email || !password) {
+      return res.status(400).json({ error: "email and password required" });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: "password must be at least 6 characters" });
+    }
 
-  const existing = await userObject(email);
-  if (existing) {
-    return res.status(409).json({ error: "email already registered" });
+    const existing = await userObject(email);
+    if (existing) {
+      return res.status(409).json({ error: "email already registered" });
+    }
+
+    const registered = await loadRegisteredUsers();
+    registered.push({ email, password, name, createdAt: new Date().toISOString() });
+    await saveRegisteredUsers(registered);
+
+    const token = makeToken({ email, name });
+    return res.json({
+      token,
+      user: { email, name }
+    });
+  } catch (e) {
+    return res.status(500).json({ error: "register failed", detail: e.message });
   }
-
-  const registered = await loadRegisteredUsers();
-  registered.push({ email, password, name, createdAt: new Date().toISOString() });
-  await saveRegisteredUsers(registered);
-
-  const token = makeToken({ email, name });
-  return res.json({
-    token,
-    user: { email, name }
-  });
 });
 
 app.post("/auth/login", async (req, res) => {
-  const email = normalizeEmail(req.body?.email);
-  const password = String(req.body?.password || "");
-  if (!email || !password) {
-    return res.status(400).json({ error: "email and password required" });
-  }
-
-  const user = await userObject(email);
-  if (!user || String(user.password || "") !== password) {
-    return res.status(401).json({ error: "invalid credentials" });
-  }
-
-  const token = makeToken(user);
-  return res.json({
-    token,
-    user: {
-      email: normalizeEmail(user.email),
-      name: user.name || user.email
+  try {
+    const email = normalizeEmail(req.body?.email);
+    const password = String(req.body?.password || "");
+    if (!email || !password) {
+      return res.status(400).json({ error: "email and password required" });
     }
-  });
+
+    const user = await userObject(email);
+    if (!user || String(user.password || "") !== password) {
+      return res.status(401).json({ error: "invalid credentials" });
+    }
+
+    const token = makeToken(user);
+    return res.json({
+      token,
+      user: {
+        email: normalizeEmail(user.email),
+        name: user.name || user.email
+      }
+    });
+  } catch (e) {
+    return res.status(500).json({ error: "login failed", detail: e.message });
+  }
 });
 
 app.get("/sync", authMiddleware, async (req, res) => {

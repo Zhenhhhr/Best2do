@@ -344,6 +344,14 @@ textarea{resize:vertical}
 .toggle-slider::before{content:'';position:absolute;width:16px;height:16px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:transform .2s}
 .toggle-switch input:checked+.toggle-slider{background:var(--purple)}
 .toggle-switch input:checked+.toggle-slider::before{transform:translateX(16px)}
+.auth-mode-tabs{display:flex;gap:6px;margin-bottom:14px}
+.auth-mode-tab{padding:6px 12px;border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--text2);background:var(--bg);cursor:pointer;transition:all .2s}
+.auth-mode-tab.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.auth-mode-tabs-inline{margin-bottom:0}
+.dv-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dv-row .dv-input{margin-bottom:0;flex:1}
+.dv-remove{width:28px;height:28px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text3);cursor:pointer;font-size:16px;line-height:1;display:flex;align-items:center;justify-content:center}
+.dv-remove:hover{border-color:var(--text3);color:var(--text)}
 </style>
 </head>
 <body>
@@ -647,7 +655,13 @@ textarea{resize:vertical}
           <div class="settings-card full-width open" onclick="App.toggleSettingsCard(this,event)">
             <div class="settings-card-head">
               <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>云端账号</h3>
-              <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div class="auth-mode-tabs auth-mode-tabs-inline">
+                  <button class="auth-mode-tab active" id="authModeLogin" onclick="App.setCloudAuthMode('login')">登录</button>
+                  <button class="auth-mode-tab" id="authModeRegister" onclick="App.setCloudAuthMode('register')">注册</button>
+                </div>
+                <svg class="card-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </div>
             </div>
             <div class="settings-card-body">
               <div class="cloud-status-bar offline" id="cloudStatusBar">
@@ -662,13 +676,12 @@ textarea{resize:vertical}
                 <label>密码</label>
                 <input type="password" id="settingsCloudPassword" placeholder="至少 6 位">
               </div>
-              <div class="form-row">
+              <div class="form-row" id="settingsCloudNameRow">
                 <label>昵称（仅注册时需要）</label>
                 <input type="text" id="settingsCloudName" placeholder="可选">
               </div>
               <div class="form-actions">
-                <button class="btn-primary" onclick="App.cloudLogin()">登录</button>
-                <button class="btn-secondary" onclick="App.cloudRegister()">注册新账号</button>
+                <button class="btn-primary" id="cloudAuthSubmitBtn" onclick="App.cloudSubmitAuth()">登录</button>
               </div>
               <div style="display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
                 <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2)">
@@ -726,6 +739,16 @@ textarea{resize:vertical}
                   <option value="运营">运营</option>
                 </select>
                 <div class="form-hint">影响 AI 日程建议和复盘分析视角</div>
+              </div>
+              <div class="form-row">
+                <label>项目默认时限</label>
+                <select id="settingsProjectDeadlineDays">
+                  <option value="">暂无</option>
+                  <option value="1">1 天</option>
+                  <option value="3">3 天</option>
+                  <option value="7">7 天</option>
+                </select>
+                <div class="form-hint">项目未填写截止日期时，按此规则自动补齐</div>
               </div>
               <div class="form-actions">
                 <button class="btn-primary" style="font-size:12px;padding:6px 16px" onclick="App.saveSettings()">保存</button>
@@ -893,6 +916,7 @@ textarea{resize:vertical}
 <script>
 const App = {
   // ===== STATE =====
+  _cloudAuthMode: 'login',
   state: {
     todos: [],
     projects: [],
@@ -902,6 +926,7 @@ const App = {
       apiKey: 'sk-c4eb4f9b54f64e93b837bcb895fa5c60',
       model: 'qwen3.6-plus',
       role: '产品经理',
+      projectDeadlineDays: '7',
       cloudEnabled: false,
       cloudBaseUrl: '',
       cloudEmail: '',
@@ -1021,6 +1046,24 @@ const App = {
     }
   },
 
+  setCloudAuthMode(mode = 'login') {
+    const authMode = mode === 'register' ? 'register' : 'login';
+    this._cloudAuthMode = authMode;
+    const loginTab = document.getElementById('authModeLogin');
+    const registerTab = document.getElementById('authModeRegister');
+    const submitBtn = document.getElementById('cloudAuthSubmitBtn');
+    const nameRow = document.getElementById('settingsCloudNameRow');
+    if (loginTab) loginTab.classList.toggle('active', authMode === 'login');
+    if (registerTab) registerTab.classList.toggle('active', authMode === 'register');
+    if (submitBtn) submitBtn.textContent = authMode === 'register' ? '注册新账号' : '登录';
+    if (nameRow) nameRow.style.display = authMode === 'register' ? '' : 'none';
+  },
+
+  cloudSubmitAuth() {
+    if (this._cloudAuthMode === 'register') return this.cloudRegister();
+    return this.cloudLogin();
+  },
+
   toggleSettingsCard(card, event) {
     if (event.target.closest('input,select,button,label,.toggle-switch')) return;
     card.classList.toggle('open');
@@ -1036,7 +1079,19 @@ const App = {
   async cloudRequest(path, options = {}) {
     const baseUrl = this.getCloudBaseUrl();
     if (!baseUrl) throw new Error('请先在设置中填写云端 API 地址');
-    const resp = await fetch(baseUrl + path, options);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    let resp;
+    try {
+      resp = await fetch(baseUrl + path, { ...options, signal: controller.signal });
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        throw new Error('云端请求超时（15s），请检查函数地址、CORS 和网络连通性');
+      }
+      throw new Error('云端请求失败：' + e.message);
+    } finally {
+      clearTimeout(timer);
+    }
     if (!resp.ok) {
       const text = await resp.text();
       throw new Error(`云端接口错误(${resp.status}) ${text}`);
@@ -1052,7 +1107,8 @@ const App = {
       knowhow: this.state.knowhow,
       settings: {
         model: this.state.settings.model,
-        role: this.state.settings.role
+        role: this.state.settings.role,
+        projectDeadlineDays: this.state.settings.projectDeadlineDays || ''
       },
       scheduleArchives: JSON.parse(localStorage.getItem('best2do_schedule_archives') || '[]'),
       dailyReports: JSON.parse(localStorage.getItem('best2do_daily_reports') || '[]')
@@ -1068,6 +1124,7 @@ const App = {
     if (payload.settings) {
       if (payload.settings.model) this.state.settings.model = payload.settings.model;
       if (payload.settings.role) this.state.settings.role = payload.settings.role;
+      if (payload.settings.projectDeadlineDays !== undefined) this.state.settings.projectDeadlineDays = String(payload.settings.projectDeadlineDays || '');
     }
     if (payload.scheduleArchives) localStorage.setItem('best2do_schedule_archives', JSON.stringify(payload.scheduleArchives));
     if (payload.dailyReports) localStorage.setItem('best2do_daily_reports', JSON.stringify(payload.dailyReports));
@@ -1117,6 +1174,7 @@ const App = {
       this.state.settings.cloudEnabled = true;
       document.getElementById('settingsCloudEnabled').checked = true;
       this.saveState();
+      this.setCloudAuthMode('login');
       this.updateCloudStatus(`已注册并登录 ${data.user?.email || email}`);
       this.showToast('注册成功，已自动登录');
     } catch (e) {
@@ -1229,17 +1287,20 @@ const App = {
     document.getElementById('settingsApiKey').value = s.apiKey || '';
     document.getElementById('settingsModel').value = s.model || 'qwen3.6-plus';
     document.getElementById('settingsRole').value = s.role || '产品经理';
+    document.getElementById('settingsProjectDeadlineDays').value = s.projectDeadlineDays || '7';
     document.getElementById('settingsCloudBaseUrl').value = s.cloudBaseUrl || '';
     document.getElementById('settingsCloudEnabled').checked = !!s.cloudEnabled;
     document.getElementById('settingsCloudEmail').value = s.cloudEmail || '';
     document.getElementById('topbarRole').textContent = s.role || '产品经理';
     this.updateCloudStatus(s.cloudToken ? `已登录 ${s.cloudEmail || ''}` : '未登录');
+    this.setCloudAuthMode('login');
   },
 
   saveSettings() {
     this.state.settings.apiKey = document.getElementById('settingsApiKey').value;
     this.state.settings.model = document.getElementById('settingsModel').value;
     this.state.settings.role = document.getElementById('settingsRole').value;
+    this.state.settings.projectDeadlineDays = document.getElementById('settingsProjectDeadlineDays').value;
     this.state.settings.cloudBaseUrl = document.getElementById('settingsCloudBaseUrl').value.trim();
     this.state.settings.cloudEnabled = document.getElementById('settingsCloudEnabled').checked;
     this.state.settings.cloudEmail = document.getElementById('settingsCloudEmail').value.trim();
@@ -1642,15 +1703,54 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
     }
   },
 
-  addDvInput() {
+  addDvInput(value = '') {
     const container = document.getElementById('dvInputs');
-    const count = container.querySelectorAll('.dv-input').length;
+    const count = container.querySelectorAll('.dv-row').length;
+    const row = document.createElement('div');
+    row.className = 'dv-row';
     const input = document.createElement('input');
     input.type = 'text';
     input.className = 'dv-input';
-    input.placeholder = `交付物 ${count+1}`;
-    input.style.marginBottom = '6px';
-    container.appendChild(input);
+    input.placeholder = `交付物 ${count+1}${count>=3?'（可选）':''}`;
+    input.value = value;
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'dv-remove';
+    removeBtn.textContent = '−';
+    removeBtn.title = '删除该交付物';
+    removeBtn.onclick = () => this.removeDvInput(removeBtn);
+    row.appendChild(input);
+    row.appendChild(removeBtn);
+    container.appendChild(row);
+    this.renumberDvInputs();
+  },
+
+  removeDvInput(btn) {
+    const container = document.getElementById('dvInputs');
+    const rows = container.querySelectorAll('.dv-row');
+    if (rows.length <= 1) {
+      const onlyInput = rows[0]?.querySelector('.dv-input');
+      if (onlyInput) onlyInput.value = '';
+      return;
+    }
+    btn.closest('.dv-row')?.remove();
+    this.renumberDvInputs();
+  },
+
+  renumberDvInputs() {
+    const rows = Array.from(document.querySelectorAll('#dvInputs .dv-row'));
+    rows.forEach((row, idx) => {
+      const input = row.querySelector('.dv-input');
+      if (input) input.placeholder = `交付物 ${idx + 1}${idx>=3?'（可选）':''}`;
+    });
+  },
+
+  getDefaultProjectDeadline() {
+    const days = Number(this.state.settings.projectDeadlineDays || 0);
+    if (!days) return '';
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
   },
 
   showProjectModal(editId) {
@@ -1669,15 +1769,9 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
         const container = document.getElementById('dvInputs');
         container.innerHTML = '';
         const dvs = p.deliverables || [];
-        const count = Math.max(dvs.length, 4);
+        const count = Math.max(dvs.length, 1);
         for (let i = 0; i < count; i++) {
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.className = 'dv-input';
-          input.placeholder = `交付物 ${i+1}`;
-          input.style.marginBottom = '6px';
-          input.value = dvs[i] ? dvs[i].content : '';
-          container.appendChild(input);
+          this.addDvInput(dvs[i] ? dvs[i].content : '');
         }
       }
     } else {
@@ -1691,12 +1785,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
       const container = document.getElementById('dvInputs');
       container.innerHTML = '';
       for (let i = 0; i < 4; i++) {
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'dv-input';
-        input.placeholder = `交付物 ${i+1}${i>=3?'（可选）':''}`;
-        input.style.marginBottom = '6px';
-        container.appendChild(input);
+        this.addDvInput('');
       }
     }
     document.getElementById('projectModal').classList.add('show');
@@ -1737,7 +1826,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
     const systemPrompt = `你是一位资深产品总监的项目管理助手。你需要阅读用户提供的文档/文本内容，理解其中描述的工作，将其拆解为一个或多个结构化项目。
 
 ## 核心原则
-1. **只提取原文中明确提到或可合理推断的信息**。如果原文没有提到截止日期，deadline 必须为 null，绝不能编造
+1. **只提取原文中明确提到或可合理推断的信息**。如果原文没有截止日期，允许 deadline 为 null（前端会自动补默认时限）
 2. **智能判断项目边界**：如果文档描述的是一件事，输出一个项目；如果描述了多件独立的事，拆为多个项目
 3. **交付物必须具体可执行**：不是"做好用户体验"，而是"完成首页改版设计稿评审"
 4. **优先级基于原文语境判断**：紧急/重要/ASAP 类描述 → P0；正常推进 → P1；后续再做 → P2/P3。如果无法判断，默认 P1
@@ -1751,7 +1840,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
 - objective: 一句话业务目标，概括这个项目要达成什么结果
 - deliverables: 核心交付物列表，每一项都是具体可验收的工作成果
 - owner: 负责人（原文提到的人名），没提到则 null
-- deadline: YYYY-MM-DD 格式，原文没有明确日期则 null
+- deadline: YYYY-MM-DD 格式，原文没有明确日期可填 null
 - risk: 风险与阻塞描述（原文提到的），没有则 null
 
 ## 输出格式（严格 JSON，不要输出其他内容）
@@ -1815,7 +1904,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
             deliverables: (proj.deliverables || []).map(d => ({ content: d, done: false })),
             owner: proj.owner || '',
             risk: proj.risk || '',
-            deadline: proj.deadline || '',
+            deadline: proj.deadline || this.getDefaultProjectDeadline(),
             status: 'active',
             createdAt: new Date().toISOString().slice(0, 10)
           });
@@ -1823,7 +1912,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
         this.saveState();
         this.renderProjects();
         this.updateGenBtnState();
-        const hasMissing = parsed.projects.some(p => !p.objective || !p.deadline);
+        const hasMissing = parsed.projects.some(p => !p.objective);
         if (hasMissing) {
           this.showToastWithAction(
             `已生成 ${parsed.projects.length} 个项目，部分信息待补充`,
@@ -1937,7 +2026,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
         p.stage = document.getElementById('projStage').value;
         p.objective = document.getElementById('projObj').value.trim();
         p.owner = document.getElementById('projOwner').value.trim();
-        p.deadline = document.getElementById('projDeadline').value;
+        p.deadline = document.getElementById('projDeadline').value || this.getDefaultProjectDeadline();
         p.risk = document.getElementById('projRisk').value.trim();
         const oldDone = {};
         (p.deliverables || []).forEach(d => { oldDone[d.content] = d.done; });
@@ -1953,7 +2042,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
         deliverables,
         owner: document.getElementById('projOwner').value.trim(),
         risk: document.getElementById('projRisk').value.trim(),
-        deadline: document.getElementById('projDeadline').value,
+        deadline: document.getElementById('projDeadline').value || this.getDefaultProjectDeadline(),
         status: 'active',
         createdAt: new Date().toISOString().slice(0, 10)
       });
