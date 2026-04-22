@@ -3854,11 +3854,16 @@ ${historyCtx}
   },
 
   // ===== KNOWHOW AI IMPORT =====
+  /** 从文本中提取第一个 URL（支持混合文字） */
+  extractFirstUrl(text) {
+    const m = text.match(/https?:\/\/[^\s\]）)>'"]+/i);
+    return m ? m[0] : null;
+  },
+
   onKhInputChange(el) {
-    const val = el.value.trim();
-    const isUrl = /^https?:\/\/\S+$/i.test(val) && !val.includes('\n');
+    const url = this.extractFirstUrl(el.value);
     const badge = document.getElementById('khUrlBadge');
-    if (badge) badge.style.display = isUrl ? 'flex' : 'none';
+    if (badge) badge.style.display = url ? 'flex' : 'none';
   },
 
   /**
@@ -3958,20 +3963,24 @@ ${historyCtx}
       { projectContext: JSON.stringify(projectContext) }
     );
 
-    // ——— URL 检测与网页抓取 ———
-    const isUrl = /^https?:\/\/\S+$/i.test(textInput) && !textInput.includes('\n');
+    // ——— URL 检测与网页抓取（支持混合文字中含 URL）———
+    const foundUrl = this.extractFirstUrl(textInput);
     let userContent = '';
+    let fetchedPage = null;
 
-    if (isUrl) {
+    if (foundUrl) {
       btn.innerHTML = `${spinnerHtml} 爬取网页中...`;
       try {
-        const page = await this.fetchWebpageContent(textInput);
-        userContent = `来源：${page.url}\n${page.meta}\n\n正文内容：\n${page.text}`;
+        fetchedPage = await this.fetchWebpageContent(foundUrl);
+        // 把原始文字（除 URL 外）也作为上下文附加
+        const surroundingText = textInput.replace(foundUrl, '').trim();
+        userContent = `来源：${fetchedPage.url}\n${fetchedPage.meta}\n\n正文内容：\n${fetchedPage.text}`;
+        if (surroundingText) userContent += `\n\n用户补充描述：${surroundingText}`;
       } catch (e) {
-        this.showToast(e.message);
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
-        return;
+        // 抓取失败：降级为纯文本处理并提示
+        this.showToast(`网页抓取失败，将按纯文本提炼（${e.message}）`);
+        userContent = textInput + '\n\n';
+        fetchedPage = null;
       }
       btn.innerHTML = `${spinnerHtml} AI 分析中...`;
     } else if (textInput) {
@@ -4021,7 +4030,7 @@ ${historyCtx}
         if (badge) badge.style.display = 'none';
         this.state.khImportFiles = [];
         this.renderKhImportFiles();
-        const sourceLabel = isUrl ? '网页' : '内容';
+        const sourceLabel = fetchedPage ? '网页' : '内容';
         this.showToast(`已从${sourceLabel}提炼 ${parsed.knowhows.length} 条 Knowhow`);
       } else {
         this.showToast('未能提炼出可执行 Knowhow，请尝试提供更具体的内容');

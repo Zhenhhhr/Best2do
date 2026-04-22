@@ -3842,11 +3842,15 @@ ${historyCtx}
     `).join('');
   },
 
+  extractFirstUrl(text) {
+    const m = text.match(/https?:\/\/[^\s\]）)>'"]+/i);
+    return m ? m[0] : null;
+  },
+
   onKhInputChange(el) {
-    const val = el.value.trim();
-    const isUrl = /^https?:\/\/\S+$/i.test(val) && !val.includes('\n');
+    const url = this.extractFirstUrl(el.value);
     const badge = document.getElementById('khUrlBadge');
-    if (badge) badge.style.display = isUrl ? 'flex' : 'none';
+    if (badge) badge.style.display = url ? 'flex' : 'none';
   },
 
   async fetchWebpageContent(url) {
@@ -3907,19 +3911,21 @@ ${historyCtx}
       { projectContext: JSON.stringify(projectContext) }
     );
 
-    const isUrl = /^https?:\/\/\S+$/i.test(textInput) && !textInput.includes('\n');
+    const foundUrl = this.extractFirstUrl(textInput);
     let userContent = '';
+    let fetchedPage = null;
 
-    if (isUrl) {
+    if (foundUrl) {
       btn.innerHTML = `${spinnerHtml} 爬取网页中...`;
       try {
-        const page = await this.fetchWebpageContent(textInput);
-        userContent = `来源：${page.url}\n${page.meta}\n\n正文内容：\n${page.text}`;
+        fetchedPage = await this.fetchWebpageContent(foundUrl);
+        const surroundingText = textInput.replace(foundUrl, '').trim();
+        userContent = `来源：${fetchedPage.url}\n${fetchedPage.meta}\n\n正文内容：\n${fetchedPage.text}`;
+        if (surroundingText) userContent += `\n\n用户补充描述：${surroundingText}`;
       } catch (e) {
-        this.showToast(e.message);
-        btn.disabled = false;
-        btn.innerHTML = origHtml;
-        return;
+        this.showToast(`网页抓取失败，将按纯文本提炼（${e.message}）`);
+        userContent = textInput + '\n\n';
+        fetchedPage = null;
       }
       btn.innerHTML = `${spinnerHtml} AI 分析中...`;
     } else if (textInput) {
@@ -3969,7 +3975,7 @@ ${historyCtx}
         if (badge) badge.style.display = 'none';
         this.state.khImportFiles = [];
         this.renderKhImportFiles();
-        const sourceLabel = isUrl ? '网页' : '内容';
+        const sourceLabel = fetchedPage ? '网页' : '内容';
         this.showToast(`已从${sourceLabel}提炼 ${parsed.knowhows.length} 条 Knowhow`);
       } else {
         this.showToast('未能提炼出可执行 Knowhow，请尝试提供更具体的内容');
