@@ -1267,11 +1267,90 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
       project_parse: `你是一位资深产品总监的项目管理助手。你需要阅读用户提供的文档/文本内容，理解其中描述的工作，将其拆解为一个或多个结构化项目。
 1) 只提取原文明确提及或可合理推断的信息；2) 不得捏造；3) 输出严格JSON。
 字段：name/priority/stage/objective/deliverables/owner/deadline/risk。`,
-      review_generate: `你是{{role}}的AI复盘教练。根据{{period}}工作数据进行深度复盘。语言简洁有力，对{{role}}个人成长有帮助。请重点引用每条事项提交的交付物证据（文本/文档/图片摘要）来支撑判断。
-输出结构：概览/关键产出/时间效率/决策复盘/能力诊断/改进行动/Knowhow提炼。`,
+      review_generate: `你是{{role}}的工作数据分析师，只说数据和事实，不讨好，不鼓励，不废话。
+
+【历史趋势参照】
+{{historyContext}}
+
+任务：对比历史，分析本{{period}}真实问题，输出如下结构（Markdown）：
+
+## 趋势对比
+完成率、延期率与历史均值的对比，1-2句，点明是改善还是恶化，用数字说话。若是反复延期的同一类任务，直接指出规律。
+
+## 关键产出
+逐项列出有交付物证据的完成项；没有交付物证据的"完成"标注"⚠️ 无证据"。
+
+## 问题直击（≤3条）
+列出最严重的问题，每条格式：**现象** → 根因假设 → 已造成的实际影响。只写真问题，不写"建议注意xxx"这类废话。
+
+## 能力评分（0-10分，严苛评分，历史未见改善则不加分）
+- 需求洞察：X分 — 一句理由
+- 优先级判断：X分 — 一句理由
+- 跨团队协调：X分 — 一句理由
+- 数据驱动：X分 — 一句理由
+- 执行收敛力：X分 — 一句理由（是否频繁延期、目标漂移）
+
+## 下期行动（3条，必须对应上面问题，不对应的不写）
+每条：做什么 + 验收标准 + Deadline
+
+## Knowhow提炼
+只提炼本期真实出现的新洞察，历史已有的不重复。`,
       knowhow_parse: `你是一位资深产品经理的知识管理助手。用户会给你工作经验、项目复盘、会议纪要或文档内容。
 请自动分类并提炼可复用Knowhow，输出结构化JSON（title/content/category/scenario/caseStudy/projectName/tags）。`
     };
+  },
+
+  /**
+   * 从 localStorage + state.reviews 提取历史报告趋势摘要，注入 AI prompt。
+   * periodType: 'daily' | 'weekly'
+   */
+  buildHistoricalContext(periodType = 'daily', limit = 5) {
+    let pastReports = [];
+    if (periodType === 'daily') {
+      const allDailyReports = JSON.parse(localStorage.getItem('best2do_daily_reports') || '[]');
+      pastReports = allDailyReports
+        .filter(r => r.type === 'daily')
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, limit);
+    } else {
+      pastReports = (this.state.reviews || [])
+        .filter(r => r.type === 'weekly')
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, limit);
+    }
+
+    if (pastReports.length === 0) return '无历史数据（首次生成）';
+
+    const avgRate = Math.round(
+      pastReports.reduce((s, r) => s + (r.completionRate || 0), 0) / pastReports.length
+    );
+
+    // 统计反复延期的任务关键词
+    const delayedTexts = pastReports.flatMap(r => {
+      if (r.schedule) return r.schedule.filter(s => s.status !== 'done').map(s => s.content || '');
+      return [];
+    });
+    const freq = {};
+    delayedTexts.forEach(t => {
+      const key = t.slice(0, 10);
+      freq[key] = (freq[key] || 0) + 1;
+    });
+    const recurringDelays = Object.entries(freq)
+      .filter(([, c]) => c >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([k, c]) => `"${k}…" (延期${c}次)`)
+      .join('、');
+
+    const rows = pastReports.map(r =>
+      `${r.date}：完成率${r.completionRate}%，完成${r.completedItems||0}/${r.totalItems||0}项，延期${r.delayedItems||0}项`
+    ).join('\n');
+
+    return [
+      `近${pastReports.length}期均值完成率：${avgRate}%`,
+      rows,
+      recurringDelays ? `反复延期的任务：${recurringDelays}` : ''
+    ].filter(Boolean).join('\n');
   },
 
   ensurePromptSettings() {
@@ -3018,22 +3097,24 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
       };
     });
 
+    const historyContext = this.buildHistoricalContext(this.state.currentReviewPeriod);
     const systemPrompt = this.renderPromptTemplate(
       this.getPrompt('review_generate'),
-      { role, period }
-    ) + `\n\n项目概况：${JSON.stringify(projectSummary)}\n\n末尾附JSON：\n\`\`\`json\n{"knowhow":[{"title":"名称","content":"要点","category":"req|design|project|data|collab|growth","tags":["标签"]}]}\n\`\`\``;
-
-    const itemsSummary = items.map(t => {
-      const proj = t.projectId ? this.state.projects.find(p => p.id === t.projectId)?.name : '无';
-      const deliverables = this.todoDeliverablesSummary(t);
-      return `- [${t.status === 'done' ? '已完成' : t.status === 'delayed' ? '延期' : t.status === 'in_progress' ? '进行中' : '未开始'}] ${t.content} (项目: ${proj}, 紧急度: ${t.urgency}, 计划时限: ${t.deadline || '未设定'}, 交付物: ${deliverables})`;
-    }).join('\n');
+      { role, period, historyContext }
+    ) + `\n\n【项目概况】\n${JSON.stringify(projectSummary)}\n\n末尾附JSON：\n\`\`\`json\n{"knowhow":[{"title":"名称","content":"要点","category":"req|design|project|data|collab|growth","tags":["标签"]}]}\n\`\`\``;
 
     const total = items.length;
     const done = items.filter(t => t.status === 'done').length;
     const delayed = items.filter(t => t.status === 'delayed').length;
 
-    const userMsg = `本${period}工作记录 (共${total}项, 完成${done}项, 延期${delayed}项, 完成率${total>0?Math.round(done/total*100):0}%)：\n${itemsSummary}`;
+    const itemsSummary = items.map(t => {
+      const proj = t.projectId ? this.state.projects.find(p => p.id === t.projectId)?.name : '无';
+      const deliverables = this.todoDeliverablesSummary(t);
+      const status = t.status === 'done' ? '已完成' : t.status === 'delayed' ? '延期' : t.status === 'in_progress' ? '进行中' : '未开始';
+      return `- [${status}] ${t.timeSlot||''} ${t.content}（项目:${proj}，产出目标:${t.outputGoal||'未填'}，交付物:${deliverables}）`;
+    }).join('\n');
+
+    const userMsg = `本${period}工作记录（共${total}项，完成${done}项，延期${delayed}项，完成率${total>0?Math.round(done/total*100):0}%）：\n${itemsSummary}`;
 
     try {
       const result = await this.callAI(systemPrompt, userMsg);
@@ -3229,13 +3310,37 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
       return `[${t.status === 'done' ? '完成' : '未完成'}] ${t.timeSlot||''} ${t.content} → ${t.outputGoal||''}（项目:${proj}，交付物:${deliverables}）`;
     }).join('\n');
 
-    const systemPrompt = `你是${role}的AI复盘教练。根据工作数据生成日报。语言简洁有力，对${role}个人成长有帮助。请把事项交付物作为事实依据写入关键产出和复盘。
-Markdown输出：一、今日概览（完成率+核心产出）二、关键产出（按项目归类）三、时间效率分析 四、决策复盘 五、${role}能力诊断（0-10分：需求洞察/优先级判断/跨团队协调/数据驱动/用户同理心）六、明日优化（3条行动）七、Knowhow提炼
+    const historyCtx = this.buildHistoricalContext('daily');
+    const systemPrompt = `你是${role}的工作数据分析师，只说数据和事实，不讨好，不鼓励，不废话。
+
+【历史趋势参照】
+${historyCtx}
+
+任务：对比历史，分析本日真实问题，Markdown输出：
+
+## 趋势对比
+完成率与历史均值对比，1-2句，数字说话，点明是否改善/恶化；若有反复延期的同类任务直接指出。
+
+## 关键产出
+逐项列出有交付物证据的完成项；无证据的"完成"标注"⚠️ 无证据"。
+
+## 问题直击（≤3条）
+**现象** → 根因假设 → 实际影响。只写真问题，不写泛泛建议。
+
+## 能力评分（0-10，严苛，历史未改善不加分）
+- 需求洞察 / 优先级判断 / 跨团队协调 / 数据驱动 / 执行收敛力：各给分+1句理由
+
+## 明日行动（3条，必须对应上面问题）
+做什么 + 验收标准 + 完成时间
+
+## Knowhow提炼
+只提炼本日真实出现的新洞察。
+
 末尾JSON：\`\`\`json
 {"knowhow":[{"title":"名称","content":"要点","category":"req|design|project|data|comm|biz|user|tech","tags":["标签"]}]}
 \`\`\``;
 
-    const userMsg = `${date}工作记录（共${total}项，完成${done}项，完成率${rate}%）：\n${itemsSummary}\n项目：${JSON.stringify(projectSummary)}`;
+    const userMsg = `${date}工作记录（共${total}项，完成${done}项，完成率${rate}%）：\n${itemsSummary}\n\n【项目概况】：${JSON.stringify(projectSummary)}`;
 
     try {
       const result = await this.callAI(systemPrompt, userMsg, { thinking: false, maxTokens: 4096 });
