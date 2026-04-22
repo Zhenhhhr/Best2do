@@ -1304,18 +1304,12 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
 只提炼本期真实出现的、对{{role}}有复用价值的新洞察，历史已有的不重复列。`,
       knowhow_parse: `你是一位资深产品经理的知识管理助手。用户会给你工作经验、项目复盘、会议纪要、文档或网页内容。
 
-核心要求：每条 Knowhow 必须清晰可执行——要具体到"在什么场景下，做什么动作，达到什么效果"，不写空泛原则和口号。
+核心要求：每条 Knowhow 必须清晰可执行——具体到"在什么场景下，做什么动作，达到什么效果"，不写空泛原则和口号。title 用动词开头（≤16字）；content 写清步骤/操作/判断标准（3-5句）。
 
-输出严格 JSON（不输出其他内容）：
-{"knowhows":[{
-  "title":"动词开头的简洁标题（≤16字，如：用漏斗数据定位需求优先级）",
-  "content":"方法正文（3-5句，写清步骤/操作/判断标准，能照着直接做）",
-  "category":"req|design|project|data|comm|biz|user|tech",
-  "scenario":"适用场景（一句话，说清楚什么时候用）",
-  "caseStudy":"原文中的真实案例或数据依据，没有则空字符串",
-  "projectName":"对应项目名，没有则空字符串",
-  "tags":["关键词"]
-}]}`
+只输出 JSON，不输出任何解释文字：
+{"knowhows":[{"title":"","content":"","category":"biz","scenario":"","caseStudy":"","projectName":"","tags":[]}]}
+
+category 枚举值：req（需求方法论）、design（产品设计）、project（项目管理）、data（数据分析）、comm（沟通协作）、biz（商业思维）、user（用户研究）、tech（技术认知）`
     };
   },
 
@@ -3947,8 +3941,10 @@ ${historyCtx}
         }
       }
 
-      const result = await this.callAI(systemPrompt, userContent);
+      const result = await this.callAI(systemPrompt, userContent, { thinking: false, maxTokens: 4096 });
+      console.debug('[KH] raw AI response:', result);
       const parsed = this.parseJSON(result);
+      if (!parsed) console.warn('[KH] parseJSON returned null, raw:', result);
 
       if (parsed && parsed.knowhows && parsed.knowhows.length > 0) {
         const today = new Date().toISOString().slice(0, 10);
@@ -4136,15 +4132,20 @@ ${historyCtx}
   closeModal(id) { document.getElementById(id).classList.remove('show'); },
 
   parseJSON(text) {
-    try {
-      return JSON.parse(text);
-    } catch(e) {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) {
-        try { return JSON.parse(match[0]); } catch(e2) {}
+    if (!text) return null;
+    let s = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    try { return JSON.parse(s); } catch(e) {}
+    const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fence) { try { return JSON.parse(fence[1].trim()); } catch(e) {} }
+    const start = s.indexOf('{');
+    if (start !== -1) {
+      let depth = 0;
+      for (let i = start; i < s.length; i++) {
+        if (s[i] === '{') depth++;
+        else if (s[i] === '}') { depth--; if (depth === 0) { try { return JSON.parse(s.slice(start, i + 1)); } catch(e) {} break; } }
       }
-      return null;
     }
+    return null;
   },
 
   markdownToHtml(md) {
