@@ -691,7 +691,11 @@ textarea{resize:vertical}
 
         <div class="kh-import-area" id="khImportArea" style="margin-top:12px">
           <div class="kh-import-left">
-            <textarea id="khImportInput" placeholder="粘贴经验总结、会议纪要、项目复盘、读书笔记等文本，AI 将自动提炼为可复用的 Knowhow..."></textarea>
+            <textarea id="khImportInput" placeholder="粘贴经验总结、会议纪要、项目复盘、读书笔记、网页链接（http...）等，AI 自动提炼为可执行 Knowhow…" oninput="App.onKhInputChange(this)"></textarea>
+            <div id="khUrlBadge" style="display:none;align-items:center;gap:5px;font-size:11px;color:var(--purple);padding:4px 0">
+              <svg style="width:11px;height:11px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              识别为网页链接，将自动爬取内容提炼 Knowhow
+            </div>
             <div class="kh-import-files" id="khImportFiles"></div>
           </div>
           <div class="kh-import-right">
@@ -706,7 +710,7 @@ textarea{resize:vertical}
                 AI 提炼
               </button>
               <span class="ai-help-trigger">?
-                <span class="ai-help-tip">理解经验文本/附件内容，自动归类提炼成可复用方法论与实践清单，并关联项目场景。</span>
+                <span class="ai-help-tip">支持文本、文件、网页链接。粘贴 URL 后自动爬取网页图文内容；所有 Knowhow 提炼为清晰可执行的行动方法论，并关联项目场景。</span>
               </span>
             </div>
           </div>
@@ -1298,8 +1302,20 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
 
 ## Knowhow提炼
 只提炼本期真实出现的、对{{role}}有复用价值的新洞察，历史已有的不重复列。`,
-      knowhow_parse: `你是一位资深产品经理的知识管理助手。用户会给你工作经验、项目复盘、会议纪要或文档内容。
-请自动分类并提炼可复用Knowhow，输出结构化JSON（title/content/category/scenario/caseStudy/projectName/tags）。`
+      knowhow_parse: `你是一位资深产品经理的知识管理助手。用户会给你工作经验、项目复盘、会议纪要、文档或网页内容。
+
+核心要求：每条 Knowhow 必须清晰可执行——要具体到"在什么场景下，做什么动作，达到什么效果"，不写空泛原则和口号。
+
+输出严格 JSON（不输出其他内容）：
+{"knowhows":[{
+  "title":"动词开头的简洁标题（≤16字，如：用漏斗数据定位需求优先级）",
+  "content":"方法正文（3-5句，写清步骤/操作/判断标准，能照着直接做）",
+  "category":"req|design|project|data|comm|biz|user|tech",
+  "scenario":"适用场景（一句话，说清楚什么时候用）",
+  "caseStudy":"原文中的真实案例或数据依据，没有则空字符串",
+  "projectName":"对应项目名，没有则空字符串",
+  "tags":["关键词"]
+}]}`
     };
   },
 
@@ -3838,6 +3854,70 @@ ${historyCtx}
   },
 
   // ===== KNOWHOW AI IMPORT =====
+  onKhInputChange(el) {
+    const val = el.value.trim();
+    const isUrl = /^https?:\/\/\S+$/i.test(val) && !val.includes('\n');
+    const badge = document.getElementById('khUrlBadge');
+    if (badge) badge.style.display = isUrl ? 'flex' : 'none';
+  },
+
+  /**
+   * 通过 CORS 代理抓取网页内容（文本+元信息）
+   */
+  async fetchWebpageContent(url) {
+    const proxies = [
+      { type: 'allorigins', url: `https://api.allorigins.win/get?url=${encodeURIComponent(url)}` },
+      { type: 'corsproxy', url: `https://corsproxy.io/?${encodeURIComponent(url)}` }
+    ];
+    let lastErr = '';
+    for (const proxy of proxies) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 18000);
+        const resp = await fetch(proxy.url, { signal: controller.signal });
+        clearTimeout(timer);
+        if (!resp.ok) continue;
+        let html = '';
+        if (proxy.type === 'allorigins') {
+          const data = await resp.json();
+          html = data.contents || '';
+        } else {
+          html = await resp.text();
+        }
+        if (!html) continue;
+
+        // 解析 HTML 提取内容
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const title = doc.title || '';
+        const metaDesc = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
+        const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+        const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute('content') || '';
+
+        // 去除干扰节点
+        doc.querySelectorAll('script,style,nav,footer,header,aside,noscript,[class*="nav"],[class*="footer"],[class*="sidebar"],[class*="menu"],[id*="nav"],[id*="footer"],[id*="sidebar"],[class*="comment"],[class*="ad"]').forEach(el => el.remove());
+
+        // 优先取 main/article/[role=main]，否则取 body
+        const mainEl = doc.querySelector('main,[role="main"],article,[class*="article"],[class*="post-content"],[class*="entry-content"]') || doc.body;
+        const rawText = (mainEl?.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+
+        // 收集页面内图片 alt 文字（辅助理解）
+        const imgAlts = Array.from(doc.querySelectorAll('img[alt]')).map(i => i.getAttribute('alt')).filter(a => a && a.length > 2).slice(0, 10).join('、');
+
+        const meta = [
+          `标题：${ogTitle || title}`,
+          (ogDesc || metaDesc) ? `摘要：${ogDesc || metaDesc}` : '',
+          imgAlts ? `图片描述：${imgAlts}` : ''
+        ].filter(Boolean).join('\n');
+
+        return { url, meta, text: rawText.slice(0, 10000) };
+      } catch (e) {
+        lastErr = e.message;
+      }
+    }
+    throw new Error(`网页抓取失败（${lastErr || '所有代理均无响应'}）。如页面有反爬限制，请手动复制正文粘贴。`);
+  },
+
   handleKhFiles(files) {
     Array.from(files).forEach(f => {
       if (this.state.khImportFiles.find(x => x.name === f.name)) return;
@@ -3862,30 +3942,45 @@ ${historyCtx}
     const textInput = document.getElementById('khImportInput').value.trim();
     const files = this.state.khImportFiles;
     if (!textInput && files.length === 0) {
-      this.showToast('请输入文本或上传文件');
+      this.showToast('请输入文本、网页链接或上传文件');
       return;
     }
 
     const btn = event.target.closest('button');
     btn.disabled = true;
     const origHtml = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;display:inline-block;border:2px solid var(--border);border-top-color:#000;border-radius:50%;animation:spin .8s linear infinite"></span> 提炼中...';
+    const spinnerHtml = '<span class="spinner" style="width:12px;height:12px;display:inline-block;border:2px solid var(--border);border-top-color:#000;border-radius:50%;animation:spin .8s linear infinite"></span>';
+    btn.innerHTML = `${spinnerHtml} 提炼中...`;
 
     const projectContext = this.state.projects.map(p => ({ name: p.name, objective: p.objective }));
-
     const systemPrompt = this.renderPromptTemplate(
       this.getPrompt('knowhow_parse'),
       { projectContext: JSON.stringify(projectContext) }
     );
 
+    // ——— URL 检测与网页抓取 ———
+    const isUrl = /^https?:\/\/\S+$/i.test(textInput) && !textInput.includes('\n');
     let userContent = '';
-    if (textInput) userContent += textInput + '\n\n';
+
+    if (isUrl) {
+      btn.innerHTML = `${spinnerHtml} 爬取网页中...`;
+      try {
+        const page = await this.fetchWebpageContent(textInput);
+        userContent = `来源：${page.url}\n${page.meta}\n\n正文内容：\n${page.text}`;
+      } catch (e) {
+        this.showToast(e.message);
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+        return;
+      }
+      btn.innerHTML = `${spinnerHtml} AI 分析中...`;
+    } else if (textInput) {
+      userContent = textInput + '\n\n';
+    }
 
     try {
-      let hasImage = false;
       for (const fileObj of files) {
         if (fileObj.file.type.startsWith('image/')) {
-          hasImage = true;
           const base64 = await this.fileToBase64(fileObj.file);
           const imgResult = await this.callAIMultimodal(
             '请识别这张图片中的内容，提取出与产品经理工作相关的方法论、经验、流程等信息，用中文输出。',
@@ -3922,11 +4017,14 @@ ${historyCtx}
         this.saveState();
         this.renderKnowhow();
         document.getElementById('khImportInput').value = '';
+        const badge = document.getElementById('khUrlBadge');
+        if (badge) badge.style.display = 'none';
         this.state.khImportFiles = [];
         this.renderKhImportFiles();
-        this.showToast(`已提炼 ${parsed.knowhows.length} 条 Knowhow`);
+        const sourceLabel = isUrl ? '网页' : '内容';
+        this.showToast(`已从${sourceLabel}提炼 ${parsed.knowhows.length} 条 Knowhow`);
       } else {
-        this.showToast('未能从内容中提炼出方法论，请尝试更详细的描述');
+        this.showToast('未能提炼出可执行 Knowhow，请尝试提供更具体的内容');
       }
     } catch(e) {
       this.showToast('AI 提炼失败：' + e.message);
