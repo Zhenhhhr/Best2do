@@ -1233,6 +1233,7 @@ const App = {
 
   updateGenBtnState() {
     const btn = document.getElementById('btnGenSchedule');
+    if (!btn) return;
     const hasProjects = this.state.projects.length > 0;
     btn.disabled = !hasProjects;
     if (!hasProjects) {
@@ -1379,6 +1380,24 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
       const isOnline = msg.includes('已登录') || msg.includes('拉取完成') || msg.includes('上传完成');
       bar.className = `cloud-status-bar ${isOnline ? 'online' : 'offline'}`;
     }
+  },
+
+  /** 避免拉取/应用设置时因 DOM 未就绪或缓存旧 HTML 导致 null.value 报错 */
+  _setInputVal(id, val) {
+    const el = document.getElementById(id);
+    if (el && 'value' in el) el.value = val == null ? '' : String(val);
+  },
+  _setInputChecked(id, on) {
+    const el = document.getElementById(id);
+    if (el && 'checked' in el) el.checked = !!on;
+  },
+  _getInputVal(id, fallback = '') {
+    const el = document.getElementById(id);
+    return el && 'value' in el ? el.value : fallback;
+  },
+  _getInputChecked(id, fallback = false) {
+    const el = document.getElementById(id);
+    return el && 'checked' in el ? !!el.checked : fallback;
   },
 
   setCloudAuthMode(mode = 'login') {
@@ -1629,7 +1648,7 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
         const page = document.getElementById('page-' + btn.dataset.tab);
         if (page) page.classList.add('active');
         const genBtn = document.getElementById('btnGenSchedule');
-        genBtn.style.display = btn.dataset.tab === 'today' ? '' : 'none';
+        if (genBtn) genBtn.style.display = btn.dataset.tab === 'today' ? '' : 'none';
       });
     });
   },
@@ -1654,24 +1673,25 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
     const s = this.state.settings;
     this.ensurePromptSettings();
     this.ensureAIProfiles();
-    document.getElementById('settingsAiProfile').value = s.aiProfile || 'idealab';
-    document.getElementById('settingsBailianBaseUrl').value = s.aiProfiles.bailian.baseUrl || '';
-    document.getElementById('settingsBailianApiKey').value = s.aiProfiles.bailian.apiKey || '';
-    document.getElementById('settingsIdealabBaseUrl').value = s.aiProfiles.idealab.baseUrl || '';
-    document.getElementById('settingsIdealabApiKey').value = s.aiProfiles.idealab.apiKey || '';
-    document.getElementById('settingsModel').value = s.model || 'Qwen3.6-Plus-DogFooding';
-    document.getElementById('settingsRole').value = s.role || '产品经理';
-    document.getElementById('settingsProjectDeadlineDays').value = s.projectDeadlineDays || '7';
-    document.getElementById('settingsPomodoroAutoNext').checked = !!s.pomodoroAutoNext;
-    document.getElementById('settingsCloudBaseUrl').value = s.cloudBaseUrl || '';
-    document.getElementById('settingsCloudEnabled').checked = !!s.cloudEnabled;
-    document.getElementById('settingsCloudEmail').value = s.cloudEmail || '';
-    document.getElementById('promptScheduleGenerate').value = this.getPrompt('schedule_generate');
-    document.getElementById('promptScheduleMerge').value = this.getPrompt('schedule_merge');
-    document.getElementById('promptProjectParse').value = this.getPrompt('project_parse');
-    document.getElementById('promptReviewGenerate').value = this.getPrompt('review_generate');
-    document.getElementById('promptKnowhowParse').value = this.getPrompt('knowhow_parse');
-    document.getElementById('topbarRole').textContent = s.role || '产品经理';
+    this._setInputVal('settingsAiProfile', s.aiProfile || 'idealab');
+    this._setInputVal('settingsBailianBaseUrl', s.aiProfiles.bailian.baseUrl || '');
+    this._setInputVal('settingsBailianApiKey', s.aiProfiles.bailian.apiKey || '');
+    this._setInputVal('settingsIdealabBaseUrl', s.aiProfiles.idealab.baseUrl || '');
+    this._setInputVal('settingsIdealabApiKey', s.aiProfiles.idealab.apiKey || '');
+    this._setInputVal('settingsModel', s.model || 'Qwen3.6-Plus-DogFooding');
+    this._setInputVal('settingsRole', s.role || '产品经理');
+    this._setInputVal('settingsProjectDeadlineDays', s.projectDeadlineDays || '7');
+    this._setInputChecked('settingsPomodoroAutoNext', s.pomodoroAutoNext);
+    this._setInputVal('settingsCloudBaseUrl', s.cloudBaseUrl || '');
+    this._setInputChecked('settingsCloudEnabled', s.cloudEnabled);
+    this._setInputVal('settingsCloudEmail', s.cloudEmail || '');
+    this._setInputVal('promptScheduleGenerate', this.getPrompt('schedule_generate'));
+    this._setInputVal('promptScheduleMerge', this.getPrompt('schedule_merge'));
+    this._setInputVal('promptProjectParse', this.getPrompt('project_parse'));
+    this._setInputVal('promptReviewGenerate', this.getPrompt('review_generate'));
+    this._setInputVal('promptKnowhowParse', this.getPrompt('knowhow_parse'));
+    const topbarRole = document.getElementById('topbarRole');
+    if (topbarRole) topbarRole.textContent = s.role || '产品经理';
     this.updateCloudStatus(s.cloudToken ? `已登录 ${s.cloudEmail || ''}` : '未登录');
     this.setCloudAuthMode('login');
     this.updateAIProfileIndicator();
@@ -1679,27 +1699,29 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
 
   saveSettings() {
     this.ensureAIProfiles();
-    this.state.settings.aiProfile = document.getElementById('settingsAiProfile').value;
-    this.state.settings.aiProfiles.bailian.baseUrl = document.getElementById('settingsBailianBaseUrl').value.trim();
-    this.state.settings.aiProfiles.bailian.apiKey = document.getElementById('settingsBailianApiKey').value.trim();
-    this.state.settings.aiProfiles.idealab.baseUrl = document.getElementById('settingsIdealabBaseUrl').value.trim();
-    this.state.settings.aiProfiles.idealab.apiKey = document.getElementById('settingsIdealabApiKey').value.trim();
-    this.state.settings.model = document.getElementById('settingsModel').value;
-    this.state.settings.role = document.getElementById('settingsRole').value;
-    this.state.settings.projectDeadlineDays = document.getElementById('settingsProjectDeadlineDays').value;
-    this.state.settings.pomodoroAutoNext = document.getElementById('settingsPomodoroAutoNext').checked;
-    this.state.settings.cloudBaseUrl = document.getElementById('settingsCloudBaseUrl').value.trim();
-    this.state.settings.cloudEnabled = document.getElementById('settingsCloudEnabled').checked;
-    this.state.settings.cloudEmail = document.getElementById('settingsCloudEmail').value.trim();
+    this.state.settings.aiProfile = this._getInputVal('settingsAiProfile', this.state.settings.aiProfile);
+    this.state.settings.aiProfiles.bailian.baseUrl = this._getInputVal('settingsBailianBaseUrl', this.state.settings.aiProfiles.bailian.baseUrl).trim();
+    this.state.settings.aiProfiles.bailian.apiKey = this._getInputVal('settingsBailianApiKey', this.state.settings.aiProfiles.bailian.apiKey).trim();
+    this.state.settings.aiProfiles.idealab.baseUrl = this._getInputVal('settingsIdealabBaseUrl', this.state.settings.aiProfiles.idealab.baseUrl).trim();
+    this.state.settings.aiProfiles.idealab.apiKey = this._getInputVal('settingsIdealabApiKey', this.state.settings.aiProfiles.idealab.apiKey).trim();
+    this.state.settings.model = this._getInputVal('settingsModel', this.state.settings.model);
+    this.state.settings.role = this._getInputVal('settingsRole', this.state.settings.role);
+    this.state.settings.projectDeadlineDays = this._getInputVal('settingsProjectDeadlineDays', this.state.settings.projectDeadlineDays);
+    this.state.settings.pomodoroAutoNext = this._getInputChecked('settingsPomodoroAutoNext', this.state.settings.pomodoroAutoNext);
+    this.state.settings.cloudBaseUrl = this._getInputVal('settingsCloudBaseUrl', this.state.settings.cloudBaseUrl).trim();
+    this.state.settings.cloudEnabled = this._getInputChecked('settingsCloudEnabled', this.state.settings.cloudEnabled);
+    this.state.settings.cloudEmail = this._getInputVal('settingsCloudEmail', this.state.settings.cloudEmail).trim();
+    const prevP = this.state.settings.prompts || {};
     this.state.settings.prompts = {
-      schedule_generate: document.getElementById('promptScheduleGenerate').value.trim(),
-      schedule_merge: document.getElementById('promptScheduleMerge').value.trim(),
-      project_parse: document.getElementById('promptProjectParse').value.trim(),
-      review_generate: document.getElementById('promptReviewGenerate').value.trim(),
-      knowhow_parse: document.getElementById('promptKnowhowParse').value.trim()
+      schedule_generate: (document.getElementById('promptScheduleGenerate')?.value ?? prevP.schedule_generate ?? this.getPrompt('schedule_generate')).trim(),
+      schedule_merge: (document.getElementById('promptScheduleMerge')?.value ?? prevP.schedule_merge ?? this.getPrompt('schedule_merge')).trim(),
+      project_parse: (document.getElementById('promptProjectParse')?.value ?? prevP.project_parse ?? this.getPrompt('project_parse')).trim(),
+      review_generate: (document.getElementById('promptReviewGenerate')?.value ?? prevP.review_generate ?? this.getPrompt('review_generate')).trim(),
+      knowhow_parse: (document.getElementById('promptKnowhowParse')?.value ?? prevP.knowhow_parse ?? this.getPrompt('knowhow_parse')).trim()
     };
     this.ensurePromptSettings();
-    document.getElementById('topbarRole').textContent = this.state.settings.role;
+    const topbarRole = document.getElementById('topbarRole');
+    if (topbarRole) topbarRole.textContent = this.state.settings.role;
     this.saveState();
     this.showToast('设置已保存');
   },
@@ -2175,7 +2197,8 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
     }
     this.saveState();
     this.renderTodoDeliverablesPanel();
-    document.getElementById('todoDeliverableFileInput').value = '';
+    const tdf = document.getElementById('todoDeliverableFileInput');
+    if (tdf) tdf.value = '';
     this.showToast('交付物已添加到当前事项');
   },
 
@@ -2959,10 +2982,14 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
     const delayed = items.filter(t => t.status === 'delayed').length;
     const rate = total > 0 ? Math.round(done / total * 100) : 0;
 
-    document.getElementById('statTotal').textContent = total;
-    document.getElementById('statDone').textContent = done;
-    document.getElementById('statDelayed').textContent = delayed;
-    document.getElementById('statRate').textContent = rate + '%';
+    const elTotal = document.getElementById('statTotal');
+    const elDone = document.getElementById('statDone');
+    const elDelayed = document.getElementById('statDelayed');
+    const elRate = document.getElementById('statRate');
+    if (elTotal) elTotal.textContent = total;
+    if (elDone) elDone.textContent = done;
+    if (elDelayed) elDelayed.textContent = delayed;
+    if (elRate) elRate.textContent = rate + '%';
   },
 
   async generateReview() {
@@ -3791,14 +3818,17 @@ Markdown输出：一、今日概览（完成率+核心产出）二、关键产�
 
   // ===== ROLE =====
   showRoleModal() {
-    document.getElementById('roleSelect').value = this.state.settings.role;
+    const rs = document.getElementById('roleSelect');
+    if (rs) rs.value = this.state.settings.role;
     document.getElementById('roleModal').classList.add('show');
   },
 
   changeRole() {
-    this.state.settings.role = document.getElementById('roleSelect').value;
-    document.getElementById('topbarRole').textContent = this.state.settings.role;
-    document.getElementById('settingsRole').value = this.state.settings.role;
+    const rs = document.getElementById('roleSelect');
+    this.state.settings.role = rs ? rs.value : this.state.settings.role;
+    const tb = document.getElementById('topbarRole');
+    if (tb) tb.textContent = this.state.settings.role;
+    this._setInputVal('settingsRole', this.state.settings.role);
     this.saveState();
     this.closeModal('roleModal');
     this.showToast('角色已切换为 ' + this.state.settings.role);
