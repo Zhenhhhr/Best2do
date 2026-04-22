@@ -3999,17 +3999,25 @@ ${historyCtx}
       const result = await this.callAI(systemPrompt, userContent, { thinking: false, maxTokens: 4096 });
       console.debug('[KH] raw AI response:', result);
       const parsed = this.parseJSON(result);
-      if (!parsed) console.warn('[KH] parseJSON returned null, raw:', result);
 
-      if (parsed && parsed.knowhows && parsed.knowhows.length > 0) {
+      // 兼容 knowhows / knowhow / 直接数组等各种结构
+      let items = null;
+      if (parsed) {
+        if (Array.isArray(parsed.knowhows) && parsed.knowhows.length > 0) items = parsed.knowhows;
+        else if (Array.isArray(parsed.knowhow) && parsed.knowhow.length > 0) items = parsed.knowhow;
+        else if (Array.isArray(parsed) && parsed.length > 0) items = parsed;
+      }
+
+      if (items && items.length > 0) {
         const today = new Date().toISOString().slice(0, 10);
-        parsed.knowhows.forEach(kh => {
+        items.forEach(kh => {
+          if (!kh.title && !kh.content) return;
           const projMatch = kh.projectName ? this.state.projects.find(p => p.name === kh.projectName) : null;
           this.state.knowhow.push({
             id: this.uid(),
             category: kh.category || 'req',
-            title: kh.title,
-            content: kh.content,
+            title: kh.title || '未命名',
+            content: kh.content || '',
             scenario: kh.scenario || '',
             caseStudy: kh.caseStudy || '',
             projectId: projMatch ? projMatch.id : null,
@@ -4027,9 +4035,11 @@ ${historyCtx}
         this.state.khImportFiles = [];
         this.renderKhImportFiles();
         const sourceLabel = fetchedPage ? '网页' : '内容';
-        this.showToast(`已从${sourceLabel}提炼 ${parsed.knowhows.length} 条 Knowhow`);
+        this.showToast(`已从${sourceLabel}提炼 ${items.length} 条 Knowhow`);
       } else {
-        this.showToast('未能提炼出可执行 Knowhow，请尝试提供更具体的内容');
+        const preview = (result || '').slice(0, 120).replace(/</g, '&lt;');
+        console.warn('[KH] 无法提炼, parsed:', parsed, 'raw preview:', preview);
+        this.showToast('AI 返回内容无法解析为 Knowhow。请打开 F12 Console 查看 [KH] 日志排查。');
       }
     } catch(e) {
       this.showToast('AI 提炼失败：' + e.message);
@@ -4091,7 +4101,13 @@ ${historyCtx}
 
     const data = await response.json();
     const msg = data.choices?.[0]?.message;
-    return msg?.content || msg?.reasoning_content || '';
+    // 有些模型把内容放 content，有些放 reasoning_content；也可能 content 里只有 <think> 标签
+    let text = msg?.content || '';
+    // 如果 content 去掉 think 后为空，尝试 reasoning_content
+    if (!text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim() && msg?.reasoning_content) {
+      text = msg.reasoning_content;
+    }
+    return text;
   },
 
   // ===== DATA IMPORT / EXPORT =====
