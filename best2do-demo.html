@@ -329,12 +329,25 @@ textarea{resize:vertical}
 /* ===== MODALS ===== */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);display:none;align-items:center;justify-content:center;z-index:1000}
 .modal-overlay.show{display:flex}
+#cloudWeakLoading{position:fixed;right:20px;bottom:20px;z-index:950;display:none;align-items:center;gap:8px;padding:8px 12px;background:rgba(24,24,27,.92);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2);box-shadow:0 4px 20px rgba(0,0,0,.35);pointer-events:none}
+#cloudWeakLoading.show{display:flex}
+#cloudWeakLoading .weak-dot{width:6px;height:6px;border-radius:50%;background:var(--purple);animation:weakPulse 1s ease-in-out infinite}
+@keyframes weakPulse{0%,100%{opacity:.35}50%{opacity:1}}
+.ai-cancel-bar{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:960;display:none;align-items:center;gap:12px;padding:10px 16px;background:rgba(24,24,27,.96);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.45);font-size:13px}
+.ai-cancel-bar.show{display:flex}
+.ai-cancel-bar-text{color:var(--text);font-weight:500}
+.ai-cancel-bar .ai-cancel-bar-btn{font-size:12px;padding:6px 14px}
 .modal{background:var(--bg);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:32px;box-shadow:0 20px 40px rgba(0,0,0,0.4)}
 .modal h2{font-size:16px;font-weight:600;margin-bottom:24px;color:var(--text)}
 .modal .form-group{margin-bottom:20px}
 .modal .form-group label{display:block;font-size:12px;font-weight:500;color:var(--text2);margin-bottom:8px}
 .modal .form-group input,.modal .form-group textarea,.modal .form-group select{width:100%;background:var(--card)}
 .modal .form-actions{display:flex;gap:12px;justify-content:flex-end;margin-top:32px}
+#knowhowModal .modal{max-width:min(92vw,760px)}
+#knowhowModal textarea#khContent{min-height:240px;line-height:1.65;font-size:14px;padding:12px 14px;resize:vertical}
+#knowhowModal textarea#khScenario{min-height:88px;line-height:1.55;font-size:13px;padding:10px 14px;resize:vertical}
+#knowhowModal textarea#khCaseStudy{min-height:120px;line-height:1.55;font-size:13px;padding:10px 14px;resize:vertical}
+#knowhowModal input#khTitle{font-size:14px;padding:10px 14px}
 
 /* ===== LOADING / TYPING ===== */
 .typing-indicator{display:inline-flex;gap:4px;padding:8px 0}
@@ -826,8 +839,8 @@ textarea{resize:vertical}
               <div class="form-row">
                 <label>模型</label>
                 <select id="settingsModel">
-                  <option value="Qwen3.6-Plus-DogFooding">Qwen3.6-Plus-DogFooding（推荐）</option>
-                  <option value="qwen3.6-plus">qwen3.6-plus（旗舰）</option>
+                  <option value="qwen3.6-plus">qwen3.6-plus（推荐）</option>
+                  <option value="Qwen3.6-Plus-DogFooding">Qwen3.6-Plus-DogFooding</option>
                   <option value="qwen-max">qwen-max（精度优先）</option>
                   <option value="qwen-turbo">qwen-turbo（速度优先）</option>
                 </select>
@@ -1033,7 +1046,7 @@ textarea{resize:vertical}
 </div>
 
 <div class="modal-overlay" id="knowhowModal">
-  <div class="modal" style="max-width:560px">
+  <div class="modal">
     <h2>添加 Knowhow</h2>
     <div class="form-group">
       <label>分类维度</label>
@@ -1054,11 +1067,11 @@ textarea{resize:vertical}
     </div>
     <div class="form-group">
       <label>核心方法 / 心得</label>
-      <textarea id="khContent" rows="4" placeholder="详细描述这个方法论的核心步骤和要点"></textarea>
+      <textarea id="khContent" rows="12" placeholder="详细描述这个方法论的核心步骤和要点（可拖拽右下角调整高度）"></textarea>
     </div>
     <div class="form-group">
       <label>适用场景</label>
-      <input type="text" id="khScenario" placeholder="如：面对多个需求无法判断优先级时">
+      <textarea id="khScenario" rows="3" placeholder="如：面对多个需求无法判断优先级时；可换行写多条"></textarea>
     </div>
     <div class="form-group">
       <label>关联项目（可选）</label>
@@ -1101,6 +1114,17 @@ textarea{resize:vertical}
   </div>
 </div>
 
+<div class="modal-overlay" id="syncOverwriteModal">
+  <div class="modal">
+    <h2>云端今日日程与本地不一致</h2>
+    <p style="color:var(--text2);font-size:13px;margin-bottom:16px;line-height:1.5">拉取到的数据中，<b>今日</b>日程与当前设备上的安排不同。若继续，将用<b>云端完整数据</b>覆盖本地（含今日日程及其他模块）。</p>
+    <div class="form-actions">
+      <button class="btn-secondary" onclick="App.cancelSyncOverwrite()">取消拉取</button>
+      <button class="btn-primary" onclick="App.confirmSyncOverwrite()">用云端覆盖本地</button>
+    </div>
+  </div>
+</div>
+
 <div class="pomodoro-overlay" id="pomodoroOverlay">
   <div class="pomodoro-card">
     <div class="section-title" style="justify-content:center;margin-bottom:6px">番茄倒计时</div>
@@ -1113,10 +1137,25 @@ textarea{resize:vertical}
   </div>
 </div>
 
+<div id="cloudWeakLoading"><span class="weak-dot"></span><span>同步中…</span></div>
+<div id="aiCancelBar" class="ai-cancel-bar" aria-live="polite">
+  <span class="ai-cancel-bar-text">AI 生成中…</span>
+  <button type="button" class="btn-secondary ai-cancel-bar-btn" onclick="App.cancelAIGeneration()">取消</button>
+</div>
+
 <script>
 const App = {
   // ===== STATE =====
   _cloudAuthMode: 'login',
+  _aiCancelStack: null,
+  SCHEDULE_DAY_START: 9 * 60,
+  SCHEDULE_DAY_END: 24 * 60,
+  SCHEDULE_LUNCH_START: 12 * 60 + 30,
+  SCHEDULE_LUNCH_END: 13 * 60 + 30,
+  SCHEDULE_DINNER_START: 18 * 60 + 30,
+  SCHEDULE_DINNER_END: 19 * 60 + 30,
+  _cloudUploadDepth: 0,
+  _pendingSyncPayload: null,
   state: {
     todos: [],
     projects: [],
@@ -1124,7 +1163,7 @@ const App = {
     knowhow: [],
     settings: {
       apiKey: '',
-      model: 'Qwen3.6-Plus-DogFooding',
+      model: 'qwen3.6-plus',
       role: '产品经理',
       projectDeadlineDays: '7',
       pomodoroAutoNext: false,
@@ -1166,8 +1205,8 @@ const App = {
     this.loadState();
     this.ensurePromptSettings();
     this.ensureAIProfiles();
-    if (!this.state.settings.model || this.state.settings.model === 'qwen3.6-plus') {
-      this.state.settings.model = 'Qwen3.6-Plus-DogFooding';
+    if (!this.state.settings.model) {
+      this.state.settings.model = 'qwen3.6-plus';
     }
     this.carryOverUnfinished();
     this.setupNav();
@@ -1253,24 +1292,39 @@ const App = {
 
   getDefaultPrompts() {
     return {
-      schedule_merge: `AI执行教练。将用户新输入合并到已有日程，生成完整今日日程。工作时段10:00-21:00。
+      schedule_merge: `AI执行教练。将用户新输入合并到已有日程，生成完整今日日程。可排程时段09:00-24:00（结束时间可写24:00）。
+固定不可占用：午休12:30-13:30、晚餐18:30-19:30（休息/缓冲rest或buffer可落在这些时段）。
+同类事项（相同boxType或同一项目）尽量合并成连续大块，减少碎片化切换。
 当前{{nowTime}}，角色{{role}}。已过时段不调整，已完成保留，新事项插入合适位置。
-Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
-类型：deep/collab/comm/analysis/plan/manage/growth/buffer
+Timeboxing：优先60/90/120min大块，深度工作放上午，工作块之间用buffer过渡。
+类型：deep/collab/comm/analysis/plan/manage/growth/buffer/rest
 项目：{{projectContext}}
 当前日程：{{currentSchedule}}
 严格JSON，含workTips（1句话今日核心工作提示）：
-{"workTips":"今日提示","schedule":[{"timeSlot":"10:00-11:30","project":"项目名或null","task":"内容","boxType":"类型","outputGoal":"产出目标"}]}`,
-      schedule_generate: `AI执行教练。根据项目和已有日程，拆解生成今日完整Timeboxing日程。工作时段10:00-21:00。
+{"workTips":"今日提示","schedule":[{"timeSlot":"09:00-10:30","project":"项目名或null","task":"内容","boxType":"类型","outputGoal":"产出目标"}]}`,
+      schedule_generate: `AI执行教练。根据项目和已有日程，拆解生成今日完整Timeboxing日程。可排程时段09:00-24:00（结束时间可写24:00）。
+固定不可占用：午休12:30-13:30、晚餐18:30-19:30（休息/缓冲rest或buffer可落在这些时段）。
+同类事项尽量合并为连续大块，减少任务切换。
 角色：{{role}}，完成率{{completionRate}}%。
-规则：30/60/90min时间块，深度工作放上午，每90min缓冲，20%弹性时间，产出目标要具体可验证。
-类型：deep/collab/comm/analysis/plan/manage/growth/buffer
+规则：优先60/90/120min大块，深度工作放上午，工作块之间buffer，20%弹性，产出目标具体可验证。
+类型：deep/collab/comm/analysis/plan/manage/growth/buffer/rest
 项目：{{projectContext}}
 严格JSON：
-{"workTips":"1句话今日核心工作提示","schedule":[{"timeSlot":"10:00-11:30","project":"项目名或null","task":"内容","boxType":"类型","outputGoal":"产出目标","tips":"执行建议"}],"suggestions":["建议1","建议2"]}`,
-      project_parse: `你是一位资深产品总监的项目管理助手。你需要阅读用户提供的文档/文本内容，理解其中描述的工作，将其拆解为一个或多个结构化项目。
-1) 只提取原文明确提及或可合理推断的信息；2) 不得捏造；3) 输出严格JSON。
-字段：name/priority/stage/objective/deliverables/owner/deadline/risk。`,
+{"workTips":"1句话今日核心工作提示","schedule":[{"timeSlot":"09:00-10:30","project":"项目名或null","task":"内容","boxType":"类型","outputGoal":"产出目标","tips":"执行建议"}],"suggestions":["建议1","建议2"]}`,
+      project_parse: `你是一位资深产品总监的项目管理助手。阅读用户提供的任意长度文本（可仅一两句话或几条列表），理解意图后**有逻辑地补全**并**拆解任务**，输出一个或多个结构化项目。
+
+你必须完成（不能留空 JSON 或省略 projects）：从碎片信息推断「项目叫什么、要达成什么、关键交付物有哪些、可能风险」，把用户列举的 1、2、3 等事项落成 deliverables；若信息少，objective 用一句完整目标句概括，deliverables 至少 2 条可执行颗粒。不要编造与原文明显矛盾的业务事实，但允许合理推断行业常见步骤。
+
+禁止输出 Markdown、禁止输出解释文字；只输出一个 JSON 对象。
+
+输出格式（严格遵循）：
+{"projects":[{"name":"项目名","priority":"P1","stage":"execution","objective":"一句话目标","deliverables":["交付物1","交付物2"],"owner":"","deadline":"","risk":""}]}
+
+字段说明：
+- priority: P0|P1|P2|P3，无则 P1
+- stage: planning|execution|review|live|paused，默认 execution
+- deliverables: 字符串数组，逐项对应用户事项并必要时拆细
+- deadline: YYYY-MM-DD，用户未提则空字符串`,
       review_generate: `你是{{role}}的复盘教练。你的职责是帮他真正看清工作中的问题、找到迭代方向。不要讨好，不要泛泛鼓励，直接指出问题。
 
 【历史数据与复盘趋势】
@@ -1706,6 +1760,13 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
         method: 'GET',
         headers: this.cloudHeaders(false)
       });
+      const today = new Date().toISOString().slice(0, 10);
+      if (this.todayScheduleDiffersFromPayload(data, today)) {
+        this._pendingSyncPayload = data;
+        document.getElementById('syncOverwriteModal')?.classList.add('show');
+        this.updateCloudStatus('等待确认：今日日程不一致');
+        return;
+      }
       await this.applyStatePayload(data);
       this.updateCloudStatus('云端拉取完成');
       this.showToast('已从云端拉取最新数据');
@@ -1715,11 +1776,66 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     }
   },
 
+  todayScheduleSignature(todos, dateStr) {
+    const rows = (todos || [])
+      .filter(t => t.createdAt === dateStr)
+      .map(t => [
+        t.timeSlot || '',
+        (t.content || '').trim(),
+        t.status || '',
+        t.projectId || '',
+        t.boxType || '',
+        (t.outputGoal || '').trim()
+      ].join('|'));
+    rows.sort();
+    return rows.join('\n');
+  },
+
+  todayScheduleDiffersFromPayload(payload, dateStr) {
+    const remoteSig = this.todayScheduleSignature(payload?.todos, dateStr);
+    const localSig = this.todayScheduleSignature(this.state.todos, dateStr);
+    return remoteSig !== localSig;
+  },
+
+  async confirmSyncOverwrite() {
+    const payload = this._pendingSyncPayload;
+    this._pendingSyncPayload = null;
+    document.getElementById('syncOverwriteModal')?.classList.remove('show');
+    if (!payload) return;
+    try {
+      await this.applyStatePayload(payload);
+      this.updateCloudStatus('云端拉取完成');
+      this.showToast('已用云端数据覆盖本地');
+    } catch (e) {
+      this.updateCloudStatus('应用云端数据失败');
+      this.showToast(e.message);
+    }
+  },
+
+  cancelSyncOverwrite() {
+    this._pendingSyncPayload = null;
+    document.getElementById('syncOverwriteModal')?.classList.remove('show');
+    this.updateCloudStatus('已取消拉取');
+  },
+
+  _beginCloudUploadIndicator() {
+    this._cloudUploadDepth = (this._cloudUploadDepth || 0) + 1;
+    document.getElementById('cloudWeakLoading')?.classList.add('show');
+  },
+
+  _endCloudUploadIndicator() {
+    this._cloudUploadDepth = Math.max(0, (this._cloudUploadDepth || 0) - 1);
+    if (this._cloudUploadDepth === 0) {
+      document.getElementById('cloudWeakLoading')?.classList.remove('show');
+    }
+  },
+
   async syncUpToCloud(silent = false) {
     if (!this.state.settings.cloudToken) {
       if (!silent) this.showToast('请先登录云端');
       return;
     }
+    this._beginCloudUploadIndicator();
     try {
       if (!silent) this.updateCloudStatus('上传中...');
       await this.cloudRequest('/sync', {
@@ -1739,6 +1855,8 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
         this.updateCloudStatus('上传失败');
         this.showToast(e.message);
       }
+    } finally {
+      this._endCloudUploadIndicator();
     }
   },
 
@@ -1782,7 +1900,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     this._setInputVal('settingsBailianApiKey', s.aiProfiles.bailian.apiKey || '');
     this._setInputVal('settingsIdealabBaseUrl', s.aiProfiles.idealab.baseUrl || '');
     this._setInputVal('settingsIdealabApiKey', s.aiProfiles.idealab.apiKey || '');
-    this._setInputVal('settingsModel', s.model || 'Qwen3.6-Plus-DogFooding');
+    this._setInputVal('settingsModel', s.model || 'qwen3.6-plus');
     this._setInputVal('settingsRole', s.role || '产品经理');
     this._setInputVal('settingsProjectDeadlineDays', s.projectDeadlineDays || '7');
     this._setInputChecked('settingsPomodoroAutoNext', s.pomodoroAutoNext);
@@ -1896,6 +2014,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
 
     const userMsg = `请将以下内容排入我今天的日程：\n${text}`;
 
+    this._pushAICancellableScope();
     try {
       const result = await this.callAI(systemPrompt, userMsg);
       const parsed = this.parseJSON(result);
@@ -1932,6 +2051,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
         });
 
         this.state.todos = this.state.todos.filter(t => t.createdAt !== today).concat(newTodos);
+        this.reflowScheduleSlots(this.getSortedTodayItems());
         this.saveState();
         this.renderSchedule();
         this.regenerateScheduleInsights();
@@ -1943,11 +2063,13 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
         this.showToast('AI 未能生成日程，请重试');
       }
     } catch(e) {
-      this.showToast('生成失败：' + e.message);
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else this.showToast('生成失败：' + (e.message || e));
+    } finally {
+      this._popAICancellableScope();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
     }
-
-    btn.disabled = false;
-    btn.innerHTML = origHtml;
   },
 
   handleFiles(files) {
@@ -1971,16 +2093,113 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     return this.state.todos.filter(t => t.createdAt === today);
   },
 
+  isRestLikeBox(boxType) {
+    const b = boxType || '';
+    return b === 'rest' || b === 'buffer';
+  },
+
+  snapWorkCursor(cursor, dur) {
+    let c = Math.max(cursor, this.SCHEDULE_DAY_START);
+    for (let guard = 0; guard < 24; guard++) {
+      let changed = false;
+      if (c >= this.SCHEDULE_LUNCH_START && c < this.SCHEDULE_LUNCH_END) {
+        c = this.SCHEDULE_LUNCH_END;
+        changed = true;
+      }
+      if (c >= this.SCHEDULE_DINNER_START && c < this.SCHEDULE_DINNER_END) {
+        c = this.SCHEDULE_DINNER_END;
+        changed = true;
+      }
+      let end = c + dur;
+      if (c < this.SCHEDULE_LUNCH_START && end > this.SCHEDULE_LUNCH_START) {
+        c = this.SCHEDULE_LUNCH_END;
+        changed = true;
+        continue;
+      }
+      end = c + dur;
+      if (c < this.SCHEDULE_DINNER_START && end > this.SCHEDULE_DINNER_START) {
+        c = this.SCHEDULE_DINNER_END;
+        changed = true;
+        continue;
+      }
+      if (!changed) break;
+    }
+    if (c + dur > this.SCHEDULE_DAY_END) {
+      c = Math.max(this.SCHEDULE_DAY_START, this.SCHEDULE_DAY_END - dur);
+    }
+    return c;
+  },
+
+  normalizeSlotForItem(item, start, end) {
+    let s = start;
+    let e = end;
+    const dur = Math.max(15, e - s);
+    if (this.isRestLikeBox(item.boxType || 'deep')) {
+      s = Math.max(this.SCHEDULE_DAY_START, s);
+      e = Math.min(this.SCHEDULE_DAY_END, e);
+      if (e <= s) e = Math.min(s + 30, this.SCHEDULE_DAY_END);
+      return { start: s, end: e };
+    }
+    s = this.snapWorkCursor(s, dur);
+    e = s + dur;
+    if (e > this.SCHEDULE_DAY_END) {
+      e = this.SCHEDULE_DAY_END;
+      s = Math.max(this.SCHEDULE_DAY_START, e - dur);
+    }
+    if (e <= s) {
+      s = Math.max(this.SCHEDULE_DAY_START, this.SCHEDULE_DAY_END - 30);
+      e = this.SCHEDULE_DAY_END;
+    }
+    return { start: s, end: e };
+  },
+
+  reflowScheduleSlots(items) {
+    if (!items.length) return;
+    const dur0 = Math.max(15, this.getSlotDuration(items[0]));
+    const raw0 = this.parseTimeSlot(items[0].timeSlot)?.start ?? this.SCHEDULE_DAY_START;
+    let cursor = Math.max(this.SCHEDULE_DAY_START, raw0);
+    if (!this.isRestLikeBox(items[0].boxType || 'deep')) cursor = this.snapWorkCursor(cursor, dur0);
+
+    for (let i = 0; i < items.length; i++) {
+      const dur = Math.max(15, this.getSlotDuration(items[i]));
+      const bt = items[i].boxType || 'deep';
+      if (this.isRestLikeBox(bt)) {
+        if (cursor >= this.SCHEDULE_DAY_END) break;
+        let s = Math.max(this.SCHEDULE_DAY_START, cursor);
+        let e = Math.min(s + dur, this.SCHEDULE_DAY_END);
+        if (e <= s) e = Math.min(s + 30, this.SCHEDULE_DAY_END);
+        items[i].timeSlot = this.formatSlot(s, e);
+        cursor = e;
+      } else {
+        let s = this.snapWorkCursor(cursor, dur);
+        let e = s + dur;
+        if (e > this.SCHEDULE_DAY_END) {
+          e = this.SCHEDULE_DAY_END;
+          s = Math.max(this.SCHEDULE_DAY_START, e - dur);
+        }
+        if (e <= s) {
+          s = Math.max(this.SCHEDULE_DAY_START, this.SCHEDULE_DAY_END - 30);
+          e = this.SCHEDULE_DAY_END;
+        }
+        items[i].timeSlot = this.formatSlot(s, e);
+        cursor = e;
+      }
+    }
+  },
+
   parseTimeSlot(slot) {
     const m = String(slot || '').trim().match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
     if (!m) return null;
     const start = Number(m[1]) * 60 + Number(m[2]);
-    const end = Number(m[3]) * 60 + Number(m[4]);
+    let end = Number(m[3]) * 60 + Number(m[4]);
+    if (Number(m[3]) === 24 && Number(m[4]) === 0) end = 24 * 60;
     if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return null;
+    if (start < 0 || start >= 24 * 60 || end > 24 * 60) return null;
     return { start, end };
   },
 
   minutesToHHMM(mins) {
+    if (mins >= 24 * 60) return '24:00';
     const h = String(Math.floor(mins / 60)).padStart(2, '0');
     const m = String(mins % 60).padStart(2, '0');
     return `${h}:${m}`;
@@ -2050,7 +2269,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
         ondragend="App.onScheduleDragEnd(event)">
         <td style="cursor:pointer" onclick="App.selectTodo('${item.id}')" title="点击选中"><span class="drag-handle">⋮⋮</span></td>
         <td>
-          <input class="inline-edit inline-edit-time" value="${item.timeSlot || ''}" placeholder="10:00-11:00"
+          <input class="inline-edit inline-edit-time" value="${item.timeSlot || ''}" placeholder="09:00-10:30"
             onblur="App.inlineUpdate('${item.id}','timeSlot',this.value)">
         </td>
         <td>
@@ -2103,11 +2322,18 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     if (field === 'timeSlot') {
       const newSlot = this.parseTimeSlot(value);
       if (!newSlot) {
-        this.showToast('时间格式需为 HH:MM-HH:MM');
+        this.showToast('时间格式需为 HH:MM-HH:MM，结束可为 24:00');
         this.renderSchedule();
         return;
       }
-      item.timeSlot = this.formatSlot(newSlot.start, newSlot.end);
+      let { start, end } = newSlot;
+      if (start < this.SCHEDULE_DAY_START || end > this.SCHEDULE_DAY_END) {
+        this.showToast('时间需在当日 09:00–24:00 内');
+        this.renderSchedule();
+        return;
+      }
+      const norm = this.normalizeSlotForItem(item, start, end);
+      item.timeSlot = this.formatSlot(norm.start, norm.end);
       this.adjustFollowingSlots(id);
       this.saveState();
       this.renderSchedule();
@@ -2149,12 +2375,18 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
   addScheduleItem() {
     const items = this.getSortedTodayItems();
     const today = new Date().toISOString().slice(0, 10);
-    let start = 10 * 60;
+    let start = this.SCHEDULE_DAY_START;
     if (items.length > 0) {
       const lastSlot = this.parseTimeSlot(items[items.length - 1].timeSlot);
       if (lastSlot) start = lastSlot.end;
     }
-    const end = start + 60;
+    start = this.snapWorkCursor(start, 60);
+    let end = start + 60;
+    if (end > this.SCHEDULE_DAY_END) end = this.SCHEDULE_DAY_END;
+    if (end <= start) {
+      this.showToast('今日可排程时段已满（09:00–24:00，含固定午休/晚餐）');
+      return;
+    }
     this.state.todos.push({
       id: this.uid(),
       projectId: null,
@@ -2180,9 +2412,29 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     if (!anchorSlot) return;
     let cursor = anchorSlot.end;
     for (let i = idx + 1; i < items.length; i++) {
-      const dur = this.getSlotDuration(items[i]);
-      items[i].timeSlot = this.formatSlot(cursor, cursor + dur);
-      cursor += dur;
+      const dur = Math.max(15, this.getSlotDuration(items[i]));
+      const bt = items[i].boxType || 'deep';
+      if (this.isRestLikeBox(bt)) {
+        if (cursor >= this.SCHEDULE_DAY_END) break;
+        let s = Math.max(this.SCHEDULE_DAY_START, cursor);
+        let e = Math.min(s + dur, this.SCHEDULE_DAY_END);
+        if (e <= s) e = Math.min(s + 30, this.SCHEDULE_DAY_END);
+        items[i].timeSlot = this.formatSlot(s, e);
+        cursor = e;
+      } else {
+        let s = this.snapWorkCursor(cursor, dur);
+        let e = s + dur;
+        if (e > this.SCHEDULE_DAY_END) {
+          e = this.SCHEDULE_DAY_END;
+          s = Math.max(this.SCHEDULE_DAY_START, e - dur);
+        }
+        if (e <= s) {
+          s = Math.max(this.SCHEDULE_DAY_START, this.SCHEDULE_DAY_END - 30);
+          e = this.SCHEDULE_DAY_END;
+        }
+        items[i].timeSlot = this.formatSlot(s, e);
+        cursor = e;
+      }
     }
   },
 
@@ -2207,12 +2459,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     if (from < 0 || to < 0) return;
     const [moved] = items.splice(from, 1);
     items.splice(to, 0, moved);
-    let cursor = this.parseTimeSlot(items[0].timeSlot)?.start || 10 * 60;
-    items.forEach(t => {
-      const dur = this.getSlotDuration(t);
-      t.timeSlot = this.formatSlot(cursor, cursor + dur);
-      cursor += dur;
-    });
+    this.reflowScheduleSlots(items);
     this.saveState();
     this.renderSchedule();
     this.regenerateScheduleInsights();
@@ -2273,37 +2520,48 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     const selected = this.getSelectedTodo();
     if (!selected || !files || files.length === 0) return;
     if (!Array.isArray(selected.deliverables)) selected.deliverables = [];
-    for (const file of Array.from(files)) {
-      let extracted = '';
-      try {
-        if (file.type.startsWith('image/')) {
-          const base64 = await this.fileToBase64(file);
-          extracted = await this.callAIMultimodal(
-            '请识别图片中的核心交付物结果，输出简洁中文摘要，100字以内。',
-            base64,
-            file.type
-          );
-        } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-          extracted = await this.extractPdfText(file);
-        } else {
-          extracted = await this.fileToText(file);
+    let deliverableImportOk = false;
+    this._pushAICancellableScope();
+    try {
+      for (const file of Array.from(files)) {
+        let extracted = '';
+        try {
+          if (file.type.startsWith('image/')) {
+            const base64 = await this.fileToBase64(file);
+            extracted = await this.callAIMultimodal(
+              '请识别图片中的核心交付物结果，输出简洁中文摘要，100字以内。',
+              base64,
+              file.type
+            );
+          } else if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+            extracted = await this.extractPdfText(file);
+          } else {
+            extracted = await this.fileToText(file);
+          }
+        } catch (e) {
+          if (this._isAbortError(e)) throw e;
+          extracted = '';
         }
-      } catch (e) {
-        extracted = '';
+        selected.deliverables.push({
+          id: this.uid(),
+          type: file.type || 'file',
+          name: file.name,
+          text: (extracted || '').slice(0, 4000),
+          createdAt: new Date().toISOString()
+        });
       }
-      selected.deliverables.push({
-        id: this.uid(),
-        type: file.type || 'file',
-        name: file.name,
-        text: (extracted || '').slice(0, 4000),
-        createdAt: new Date().toISOString()
-      });
+      this.saveState();
+      this.renderTodoDeliverablesPanel();
+      deliverableImportOk = true;
+    } catch (e) {
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else this.showToast('交付物识别失败：' + (e.message || e));
+    } finally {
+      this._popAICancellableScope();
     }
-    this.saveState();
-    this.renderTodoDeliverablesPanel();
     const tdf = document.getElementById('todoDeliverableFileInput');
     if (tdf) tdf.value = '';
-    this.showToast('交付物已添加到当前事项');
+    if (deliverableImportOk) this.showToast('交付物已添加到当前事项');
   },
 
   removeTodoDeliverable(todoId, deliverableId) {
@@ -2328,7 +2586,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     const proj = item.projectId ? this.state.projects.find(p => p.id === item.projectId) : null;
     const slot = this.parseTimeSlot(item.timeSlot);
     const duration = slot ? slot.end - slot.start : 60;
-    const start = slot ? slot.start : 10 * 60;
+    const start = slot ? slot.start : this.SCHEDULE_DAY_START;
     const today = new Date().toISOString().slice(0, 10);
     const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
     const deadline = proj?.deadline || '';
@@ -2341,7 +2599,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     else if (deadline && deadline <= tomorrow) urgency = 4;
     else if (deadline) urgency = 3;
     const boxFit = duration >= 30 && duration <= 90 ? (item.outputGoal ? 5 : 4) : 2;
-    const isMorning = start >= 10 * 60 && start < 13 * 60;
+    const isMorning = start >= this.SCHEDULE_DAY_START && start < 13 * 60;
     const energyFit = item.boxType === 'deep' ? (isMorning ? 5 : 3) : 4;
     const riskSignal = /(风险|阻塞|依赖|延期|卡点|问题)/.test(`${item.content} ${proj?.risk || ''}`);
     const riskClearance = item.status === 'delayed' || riskSignal ? 5 : 2;
@@ -2608,9 +2866,10 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
       userMsg += `\n\n以下是近期延期事项，请优先重排：${JSON.stringify(delayedTodos)}`;
     }
     if (opts.auto) {
-      userMsg += '\n\n当前是工作日上午10点自动排程，请直接给出可执行的完整今日日程，保证前三个时间盒是当日聚焦重点。';
+      userMsg += '\n\n当前是工作日上午10点自动排程，请直接给出可执行的完整今日日程（09:00-24:00，避开12:30-13:30与18:30-19:30除非为休息/缓冲），保证前三个时间盒是当日聚焦重点，同类工作合并成大块。';
     }
 
+    this._pushAICancellableScope();
     try {
       const result = await this.callAI(systemPrompt, userMsg);
       const parsed = this.parseJSON(result);
@@ -2643,6 +2902,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
           }
         });
         this.state.todos.push(...newTodos);
+        this.reflowScheduleSlots(this.getSortedTodayItems());
 
         if (parsed.suggestions && parsed.suggestions.length > 0) {
           this.renderSuggestions(parsed.suggestions);
@@ -2655,12 +2915,14 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
         this.showToast(`日程已生成（${parsed.schedule.length} 个时间盒）`);
       }
     } catch(e) {
-      this.showToast('生成失败：' + e.message);
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else this.showToast('生成失败：' + (e.message || e));
+    } finally {
+      this._popAICancellableScope();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      this.updateGenBtnState();
     }
-
-    btn.disabled = false;
-    btn.innerHTML = origHtml;
-    this.updateGenBtnState();
   },
 
   renderSuggestions(suggestions) {
@@ -2841,6 +3103,15 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     el.parentElement.remove();
   },
 
+  _normalizeProjectDeliverables(raw) {
+    const arr = Array.isArray(raw) ? raw : [];
+    return arr.map(d => {
+      if (typeof d === 'string') return d.trim();
+      if (d && typeof d === 'object') return String(d.content || d.text || d.name || d.title || '').trim();
+      return String(d || '').trim();
+    }).filter(Boolean);
+  },
+
   async aiParseProject() {
     const btn = document.getElementById('btnParseProject');
     const textInput = document.getElementById('projImportInput').value.trim();
@@ -2859,46 +3130,58 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     let userContent = '';
     if (textInput) userContent = textInput;
 
-    if (hasFiles) {
-      for (const fileObj of this.state.projImportFiles) {
-        if (fileObj.type.startsWith('image/')) {
-          try {
-            const base64 = await this.fileToBase64(fileObj.file);
-            const imgResult = await this.callAIMultimodal(
-              '请提取这张图片中所有与项目相关的信息，包括项目名称、目标、任务列表、时间节点、负责人、风险等。用中文纯文本输出，尽可能保留原文细节。',
-              base64, fileObj.type
-            );
-            userContent += `\n\n[来自图片 ${fileObj.name} 的内容]:\n${imgResult}`;
-          } catch(e) {
-            userContent += `\n\n[图片 ${fileObj.name} 解析失败]`;
-          }
-        } else {
-          try {
-            const text = await this.fileToText(fileObj.file);
-            userContent += `\n\n[来自文件 ${fileObj.name} 的内容]:\n${text}`;
-          } catch(e) {
-            userContent += `\n\n[文件 ${fileObj.name} 解析失败]`;
+    this._pushAICancellableScope();
+    try {
+      if (hasFiles) {
+        for (const fileObj of this.state.projImportFiles) {
+          if (fileObj.type.startsWith('image/')) {
+            try {
+              const base64 = await this.fileToBase64(fileObj.file);
+              const imgResult = await this.callAIMultimodal(
+                '请提取这张图片中所有与项目相关的信息，包括项目名称、目标、任务列表、时间节点、负责人、风险等。用中文纯文本输出，尽可能保留原文细节。',
+                base64, fileObj.type
+              );
+              userContent += `\n\n[来自图片 ${fileObj.name} 的内容]:\n${imgResult}`;
+            } catch(e) {
+              if (this._isAbortError(e)) throw e;
+              userContent += `\n\n[图片 ${fileObj.name} 解析失败]`;
+            }
+          } else {
+            try {
+              const text = await this.fileToText(fileObj.file);
+              userContent += `\n\n[来自文件 ${fileObj.name} 的内容]:\n${text}`;
+            } catch(e) {
+              userContent += `\n\n[文件 ${fileObj.name} 解析失败]`;
+            }
           }
         }
       }
-    }
 
-    try {
       const result = await this.callAI(systemPrompt, userContent);
-      const parsed = this.parseJSON(result);
+      let parsed = this.parseJSON(result);
+      if (parsed && !parsed.projects && (parsed.name || parsed.objective)) {
+        parsed = { projects: [parsed] };
+      }
+      if (parsed && parsed.project && !parsed.projects) {
+        const p = parsed.project;
+        parsed = { projects: Array.isArray(p) ? p : [p] };
+      }
 
       if (parsed && parsed.projects && parsed.projects.length > 0) {
         const ids = [];
         parsed.projects.forEach(proj => {
           const id = this.uid();
           ids.push(id);
+          const dels = this._normalizeProjectDeliverables(proj.deliverables);
           this.state.projects.push({
             id,
             name: proj.name || '未命名项目',
             priority: proj.priority || 'P1',
             stage: proj.stage || 'execution',
             objective: proj.objective || '',
-            deliverables: (proj.deliverables || []).map(d => ({ content: d, done: false })),
+            deliverables: dels.length > 0
+              ? dels.map(content => ({ content, done: false }))
+              : [{ content: '完善交付物与验收标准', done: false }],
             owner: proj.owner || '',
             risk: proj.risk || '',
             deadline: proj.deadline || this.getDefaultProjectDeadline(),
@@ -2920,17 +3203,19 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
           this.showToast(`已生成 ${parsed.projects.length} 个项目`);
         }
       } else {
-        this.showToast('未能解析出项目信息，请补充更多内容');
+        this.showToast('未能解析出项目信息，请调整表述后重试或检查设置中的「AI 解析项目」提示词');
       }
     } catch(e) {
-      this.showToast('解析失败：' + e.message);
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else this.showToast('解析失败：' + (e.message || e));
+    } finally {
+      this._popAICancellableScope();
+      btn.disabled = false;
+      btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>AI 解析生成';
+      document.getElementById('projImportInput').value = '';
+      document.getElementById('projImportFiles').innerHTML = '';
+      this.state.projImportFiles = [];
     }
-
-    btn.disabled = false;
-    btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>AI 解析生成';
-    document.getElementById('projImportInput').value = '';
-    document.getElementById('projImportFiles').innerHTML = '';
-    this.state.projImportFiles = [];
   },
 
 
@@ -2969,13 +3254,14 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
     return fullText.trim();
   },
 
-  async callAIMultimodal(prompt, base64, mimeType) {
+  async callAIMultimodal(prompt, base64, mimeType, opts = {}) {
     const cfg = this.getCurrentAIConfig();
     const apiKey = cfg.apiKey;
     const endpoint = cfg.baseUrl;
     if (!apiKey) throw new Error('请先配置 API Key');
     if (!endpoint) throw new Error('请先配置 AI 接口地址');
 
+    const signal = opts.signal ?? this._activeAbortSignal();
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
@@ -2992,7 +3278,8 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
           ]
         }],
         max_tokens: 4096
-      })
+      }),
+      signal: signal || undefined
     });
 
     if (!response.ok) throw new Error(`API 错误 (${response.status})`);
@@ -3141,6 +3428,7 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
 
     const userMsg = `本${period}工作记录（共${total}项，完成${done}项，延期${delayed}项，完成率${total>0?Math.round(done/total*100):0}%）：\n${itemsSummary}`;
 
+    this._pushAICancellableScope();
     try {
       const result = await this.callAI(systemPrompt, userMsg);
       this.state.lastReviewReport = result;
@@ -3177,11 +3465,13 @@ category 枚举值：req（需求方法论）、design（产品设计）、proje
       this.saveState();
       this.showToast('复盘报告已生成');
     } catch(e) {
-      this.showToast('分析失败：' + e.message);
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else this.showToast('分析失败：' + (e.message || e));
+    } finally {
+      this._popAICancellableScope();
+      btn.disabled = false;
+      btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>生成复盘报告';
     }
-
-    btn.disabled = false;
-    btn.innerHTML = '<svg style="width:14px;height:14px;vertical-align:-2px;margin-right:4px" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10"/></svg>生成复盘报告';
   },
 
   extractKnowhow() {
@@ -3367,6 +3657,7 @@ ${historyCtx}
 
     const userMsg = `${date}工作记录（共${total}项，完成${done}项，完成率${rate}%）：\n${itemsSummary}\n\n【项目概况】：${JSON.stringify(projectSummary)}`;
 
+    this._pushAICancellableScope();
     try {
       const result = await this.callAI(systemPrompt, userMsg, { thinking: false, maxTokens: 4096 });
 
@@ -3410,7 +3701,10 @@ ${historyCtx}
       this.saveState();
       this.showToast(`已自动生成 ${date} 日报并存储`);
     } catch(e) {
-      console.error('Daily report generation failed:', e);
+      if (this._isAbortError(e)) this.showToast('已取消日报生成');
+      else console.error('Daily report generation failed:', e);
+    } finally {
+      this._popAICancellableScope();
     }
   },
 
@@ -3429,11 +3723,13 @@ ${historyCtx}
     const projectCtx = JSON.stringify(unfinishedDvs);
     const role = this.state.settings.role;
 
-    const systemPrompt = `AI执行教练。根据项目未完成事项生成明日${tomorrow}的Timeboxing日程。工作时段10:00-21:00。
-角色：${role}。规则：30/60/90min时间块，深度工作放上午，每90min缓冲。
+    const systemPrompt = `AI执行教练。根据项目未完成事项生成明日${tomorrow}的Timeboxing日程。可排程时段09:00-24:00（结束可写24:00）。
+固定不可占用：午休12:30-13:30、晚餐18:30-19:30（rest/buffer可落在这些时段）。同类工作合并成大块。
+角色：${role}。规则：优先60/90/120min大块，深度工作放上午，工作块之间buffer。
 待办：${projectCtx}
-严格JSON：{"workTips":"明日核心提示","schedule":[{"timeSlot":"10:00-11:30","project":"项目名","task":"内容","boxType":"类型","outputGoal":"产出"}]}`;
+严格JSON：{"workTips":"明日核心提示","schedule":[{"timeSlot":"09:00-10:30","project":"项目名","task":"内容","boxType":"类型","outputGoal":"产出"}]}`;
 
+    this._pushAICancellableScope();
     try {
       const result = await this.callAI(systemPrompt, `请为明日${tomorrow}生成日程`, { thinking: false });
       const parsed = this.parseJSON(result);
@@ -3448,11 +3744,22 @@ ${historyCtx}
             createdAt: tomorrow, completedAt: null
           });
         });
+        const tomorrowItems = this.state.todos.filter(t => t.createdAt === tomorrow);
+        tomorrowItems.sort((a, b) => {
+          const ta = this.parseTimeSlot(a.timeSlot)?.start ?? 9999;
+          const tb = this.parseTimeSlot(b.timeSlot)?.start ?? 9999;
+          if (ta !== tb) return ta - tb;
+          return String(a.id).localeCompare(String(b.id));
+        });
+        this.reflowScheduleSlots(tomorrowItems);
         this.saveState();
         this.showToast(`已自动生成明日日程（${parsed.schedule.length} 个时间盒）`);
       }
     } catch(e) {
-      console.error('Next day schedule generation failed:', e);
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else console.error('Next day schedule generation failed:', e);
+    } finally {
+      this._popAICancellableScope();
     }
   },
 
@@ -3782,10 +4089,10 @@ ${historyCtx}
       if (k) {
         document.getElementById('khCategory').value = k.category || 'req';
         document.getElementById('khTitle').value = k.title || '';
-        document.getElementById('khContent').value = k.content || '';
-        document.getElementById('khScenario').value = k.scenario || '';
+        document.getElementById('khContent').value = this.knowhowFieldToString(k.content);
+        document.getElementById('khScenario').value = this.knowhowFieldToString(k.scenario);
         document.getElementById('khProjectRef').value = k.projectId || '';
-        document.getElementById('khCaseStudy').value = k.caseStudy || '';
+        document.getElementById('khCaseStudy').value = this.knowhowFieldToString(k.caseStudy);
         document.getElementById('khTags').value = (k.tags || []).join(', ');
         document.getElementById('knowhowModal').dataset.editId = editId;
       }
@@ -3981,15 +4288,21 @@ ${historyCtx}
       userContent = textInput + '\n\n';
     }
 
+    this._pushAICancellableScope();
     try {
       for (const fileObj of files) {
         if (fileObj.file.type.startsWith('image/')) {
           const base64 = await this.fileToBase64(fileObj.file);
-          const imgResult = await this.callAIMultimodal(
-            '请识别这张图片中的内容，提取出与产品经理工作相关的方法论、经验、流程等信息，用中文输出。',
-            base64, fileObj.file.type
-          );
-          userContent += `[图片 ${fileObj.name} 内容]:\n${imgResult}\n\n`;
+          try {
+            const imgResult = await this.callAIMultimodal(
+              '请识别这张图片中的内容，提取出与产品经理工作相关的方法论、经验、流程等信息，用中文输出。',
+              base64, fileObj.file.type
+            );
+            userContent += `[图片 ${fileObj.name} 内容]:\n${imgResult}\n\n`;
+          } catch (e) {
+            if (this._isAbortError(e)) throw e;
+            userContent += `[图片 ${fileObj.name} 识别失败]\n\n`;
+          }
         } else {
           const text = await this.fileToText(fileObj.file);
           userContent += `[文件 ${fileObj.name} 内容]:\n${text}\n\n`;
@@ -3998,14 +4311,21 @@ ${historyCtx}
 
       const result = await this.callAI(systemPrompt, userContent, { thinking: false, maxTokens: 4096 });
       console.debug('[KH] raw AI response:', result);
-      const parsed = this.parseJSON(result);
+      let items = this._extractKnowhowItems(result);
 
-      // 兼容 knowhows / knowhow / 直接数组等各种结构
-      let items = null;
-      if (parsed) {
-        if (Array.isArray(parsed.knowhows) && parsed.knowhows.length > 0) items = parsed.knowhows;
-        else if (Array.isArray(parsed.knowhow) && parsed.knowhow.length > 0) items = parsed.knowhow;
-        else if (Array.isArray(parsed) && parsed.length > 0) items = parsed;
+      if (!items && result) {
+        console.debug('[KH] first parse failed, retrying with forced JSON extraction...');
+        const retryPrompt = '请将下面内容严格转为JSON数组，不要输出任何解释文字，只输出JSON：\n' +
+          '格式：{"knowhows":[{"title":"动词开头≤16字","content":"3-5句","category":"biz","scenario":"","caseStudy":"","projectName":"","tags":[]}]}\n' +
+          'category枚举：req/design/project/data/comm/biz/user/tech\n\n' + result;
+        try {
+          const retry = await this.callAI('只输出JSON，不要任何其他文字。', retryPrompt, { thinking: false, maxTokens: 4096 });
+          console.debug('[KH] retry AI response:', retry);
+          items = this._extractKnowhowItems(retry);
+        } catch(e2) {
+          if (this._isAbortError(e2)) throw e2;
+          console.warn('[KH] retry also failed:', e2);
+        }
       }
 
       if (items && items.length > 0) {
@@ -4017,9 +4337,9 @@ ${historyCtx}
             id: this.uid(),
             category: kh.category || 'req',
             title: kh.title || '未命名',
-            content: kh.content || '',
-            scenario: kh.scenario || '',
-            caseStudy: kh.caseStudy || '',
+            content: this.knowhowFieldToString(kh.content),
+            scenario: this.knowhowFieldToString(kh.scenario),
+            caseStudy: this.knowhowFieldToString(kh.caseStudy),
             projectId: projMatch ? projMatch.id : null,
             projectName: kh.projectName || '',
             source: 'ai',
@@ -4037,16 +4357,18 @@ ${historyCtx}
         const sourceLabel = fetchedPage ? '网页' : '内容';
         this.showToast(`已从${sourceLabel}提炼 ${items.length} 条 Knowhow`);
       } else {
-        const preview = (result || '').slice(0, 120).replace(/</g, '&lt;');
-        console.warn('[KH] 无法提炼, parsed:', parsed, 'raw preview:', preview);
+        const preview = (result || '').slice(0, 200).replace(/</g, '&lt;');
+        console.warn('[KH] 无法提炼, raw preview:', preview);
         this.showToast('AI 返回内容无法解析为 Knowhow。请打开 F12 Console 查看 [KH] 日志排查。');
       }
     } catch(e) {
-      this.showToast('AI 提炼失败：' + e.message);
+      if (this._isAbortError(e)) this.showToast('已取消');
+      else this.showToast('AI 提炼失败：' + (e.message || e));
+    } finally {
+      this._popAICancellableScope();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
     }
-
-    btn.disabled = false;
-    btn.innerHTML = origHtml;
   },
 
   // ===== ROLE =====
@@ -4068,6 +4390,42 @@ ${historyCtx}
   },
 
   // ===== AI API =====
+  _pushAICancellableScope() {
+    if (!this._aiCancelStack) this._aiCancelStack = [];
+    this._aiCancelStack.push(new AbortController());
+    this._syncAICancelBar();
+  },
+
+  _popAICancellableScope() {
+    if (this._aiCancelStack && this._aiCancelStack.length) this._aiCancelStack.pop();
+    this._syncAICancelBar();
+  },
+
+  _activeAbortSignal() {
+    const s = this._aiCancelStack;
+    if (!s || !s.length) return undefined;
+    return s[s.length - 1].signal;
+  },
+
+  _syncAICancelBar() {
+    const bar = document.getElementById('aiCancelBar');
+    if (bar) bar.classList.toggle('show', (this._aiCancelStack?.length || 0) > 0);
+  },
+
+  cancelAIGeneration() {
+    const s = this._aiCancelStack;
+    if (s && s.length) {
+      try { s[s.length - 1].abort(); } catch(e) {}
+    }
+  },
+
+  _isAbortError(e) {
+    if (!e) return false;
+    if (e.name === 'AbortError') return true;
+    const msg = String(e.message || '');
+    return /aborted|AbortError|signal/i.test(msg);
+  },
+
   async callAI(systemPrompt, userMessage, opts = {}) {
     const cfg = this.getCurrentAIConfig();
     const apiKey = cfg.apiKey;
@@ -4075,7 +4433,7 @@ ${historyCtx}
     if (!apiKey) throw new Error('请先在设置中配置 API Key');
     if (!endpoint) throw new Error('请先在设置中配置 AI 接口地址');
 
-    const model = this.state.settings.model || 'Qwen3.6-Plus-DogFooding';
+    const model = this.state.settings.model || 'qwen3.6-plus';
     const body = {
       model,
       messages: [
@@ -4085,13 +4443,15 @@ ${historyCtx}
       max_tokens: opts.maxTokens || 8192,
       enable_thinking: opts.thinking !== undefined ? opts.thinking : false
     };
+    const signal = opts.signal ?? this._activeAbortSignal();
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: signal || undefined
     });
 
     if (!response.ok) {
@@ -4198,28 +4558,70 @@ ${historyCtx}
   },
 
   // ===== UTILS =====
+  knowhowFieldToString(val) {
+    if (val == null || val === '') return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (Array.isArray(val)) {
+      return val.map(item => this.knowhowFieldToString(item)).filter(Boolean).join('\n');
+    }
+    if (typeof val === 'object') {
+      try {
+        return JSON.stringify(val, null, 2);
+      } catch(e) {
+        return String(val);
+      }
+    }
+    return String(val);
+  },
+
+  _extractKnowhowItems(text) {
+    const parsed = this.parseJSON(text);
+    if (!parsed) return null;
+    if (Array.isArray(parsed.knowhows) && parsed.knowhows.length > 0) return parsed.knowhows;
+    if (Array.isArray(parsed.knowhow) && parsed.knowhow.length > 0) return parsed.knowhow;
+    if (Array.isArray(parsed) && parsed.length > 0 && (parsed[0].title || parsed[0].content)) return parsed;
+    if (parsed.title || parsed.content) return [parsed];
+    for (const key of Object.keys(parsed)) {
+      const val = parsed[key];
+      if (Array.isArray(val) && val.length > 0 && (val[0].title || val[0].content)) return val;
+    }
+    return null;
+  },
+
   uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
 
   closeModal(id) { document.getElementById(id).classList.remove('show'); },
 
   parseJSON(text) {
     if (!text) return null;
-    // 1. 去除 <think>...</think> 块（部分模型即使关闭 thinking 也会输出）
     let s = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-    // 2. 直接解析
     try { return JSON.parse(s); } catch(e) {}
-    // 3. 从 ```json...``` 或 ```...``` 代码块中提取
     const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (fence) { try { return JSON.parse(fence[1].trim()); } catch(e) {} }
-    // 4. 括号平衡计数定位最外层 JSON 对象（避免贪婪正则跨越嵌套括号出错）
-    const start = s.indexOf('{');
-    if (start !== -1) {
+    const tryBalanced = (str, open, close) => {
+      const start = str.indexOf(open);
+      if (start === -1) return null;
       let depth = 0;
-      for (let i = start; i < s.length; i++) {
-        if (s[i] === '{') depth++;
-        else if (s[i] === '}') { depth--; if (depth === 0) { try { return JSON.parse(s.slice(start, i + 1)); } catch(e) {} break; } }
+      for (let i = start; i < str.length; i++) {
+        if (str[i] === open) depth++;
+        else if (str[i] === close) { depth--; if (depth === 0) { try { return JSON.parse(str.slice(start, i + 1)); } catch(e) { return null; } } }
       }
-    }
+      return null;
+    };
+    let r = tryBalanced(s, '{', '}');
+    if (r) return r;
+    r = tryBalanced(s, '[', ']');
+    if (r) return r;
+    const cleaned = s
+      .replace(/,\s*([}\]])/g, '$1')
+      .replace(/[\u201c\u201d]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'");
+    try { return JSON.parse(cleaned); } catch(e) {}
+    r = tryBalanced(cleaned, '{', '}');
+    if (r) return r;
+    r = tryBalanced(cleaned, '[', ']');
+    if (r) return r;
     return null;
   },
 

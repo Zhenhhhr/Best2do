@@ -1,0 +1,4 @@
+# Local exports (may contain API keys and personal data)
+best2do-data-*.json
+best2do-model-config-*.json
+*-data-*.json
