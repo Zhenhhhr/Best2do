@@ -1267,34 +1267,37 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
       project_parse: `你是一位资深产品总监的项目管理助手。你需要阅读用户提供的文档/文本内容，理解其中描述的工作，将其拆解为一个或多个结构化项目。
 1) 只提取原文明确提及或可合理推断的信息；2) 不得捏造；3) 输出严格JSON。
 字段：name/priority/stage/objective/deliverables/owner/deadline/risk。`,
-      review_generate: `你是{{role}}的工作数据分析师，只说数据和事实，不讨好，不鼓励，不废话。
+      review_generate: `你是{{role}}的复盘教练。你的职责是帮他真正看清工作中的问题、找到迭代方向。不要讨好，不要泛泛鼓励，直接指出问题。
 
-【历史趋势参照】
+【历史数据与复盘趋势】
 {{historyContext}}
 
-任务：对比历史，分析本{{period}}真实问题，输出如下结构（Markdown）：
+请基于上面的历史趋势 + 本{{period}}数据，输出以下结构（Markdown）：
 
-## 趋势对比
-完成率、延期率与历史均值的对比，1-2句，点明是改善还是恶化，用数字说话。若是反复延期的同一类任务，直接指出规律。
+## 趋势判断
+对比历史均值，完成率/延期率是在改善还是恶化？历史复盘指出的问题本期是否有改变？1-3句，数字+现象并列，不夸不贬。
 
 ## 关键产出
-逐项列出有交付物证据的完成项；没有交付物证据的"完成"标注"⚠️ 无证据"。
+按项目归类，列出本期有交付物证据的完成项。无交付物证据的标注"⚠️ 无法核实"。
 
-## 问题直击（≤3条）
-列出最严重的问题，每条格式：**现象** → 根因假设 → 已造成的实际影响。只写真问题，不写"建议注意xxx"这类废话。
+## 问题直击（≤3条，按严重程度排序）
+每条格式：
+**[问题标签]** 现象描述 → 推断根因 → 对产出/项目的实际影响
+规则：只写有数据/事实支撑的真问题。若某问题在历史复盘中已出现过，注明"第N次"。不写"建议关注"之类的模糊表述。
 
-## 能力评分（0-10分，严苛评分，历史未见改善则不加分）
-- 需求洞察：X分 — 一句理由
-- 优先级判断：X分 — 一句理由
-- 跨团队协调：X分 — 一句理由
-- 数据驱动：X分 — 一句理由
-- 执行收敛力：X分 — 一句理由（是否频繁延期、目标漂移）
+## 能力诊断（0-10分）
+- 需求洞察力：X分 — 本期具体依据
+- 优先级判断：X分 — 本期具体依据
+- 跨团队协调：X分 — 本期具体依据
+- 数据驱动决策：X分 — 本期具体依据
+- 执行收敛力：X分 — 是否存在目标漂移/反复延期同一任务
+历史未改善的维度不加分，并说明原因。
 
-## 下期行动（3条，必须对应上面问题，不对应的不写）
-每条：做什么 + 验收标准 + Deadline
+## 下期迭代行动（3条）
+必须与"问题直击"一一对应，格式：具体做什么 → 验收标准（可量化）→ 完成时间
 
 ## Knowhow提炼
-只提炼本期真实出现的新洞察，历史已有的不重复。`,
+只提炼本期真实出现的、对{{role}}有复用价值的新洞察，历史已有的不重复列。`,
       knowhow_parse: `你是一位资深产品经理的知识管理助手。用户会给你工作经验、项目复盘、会议纪要或文档内容。
 请自动分类并提炼可复用Knowhow，输出结构化JSON（title/content/category/scenario/caseStudy/projectName/tags）。`
     };
@@ -1314,25 +1317,37 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
         .sort((a, b) => b.date.localeCompare(a.date))
         .slice(0, limit);
     }
-    if (pastReports.length === 0) return '无历史数据（首次生成）';
+    const stateReviews = (this.state.reviews || [])
+      .filter(r => r.type === periodType && r.report)
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, limit);
+    if (pastReports.length === 0 && stateReviews.length === 0) return '无历史数据（首次生成）';
+    const allForStats = pastReports.length > 0 ? pastReports : stateReviews;
     const avgRate = Math.round(
-      pastReports.reduce((s, r) => s + (r.completionRate || 0), 0) / pastReports.length
+      allForStats.reduce((s, r) => s + (r.completionRate || 0), 0) / allForStats.length
     );
-    const delayedTexts = pastReports.flatMap(r => {
-      if (r.schedule) return r.schedule.filter(s => s.status !== 'done').map(s => s.content || '');
-      return [];
-    });
-    const freq = {};
-    delayedTexts.forEach(t => { const key = t.slice(0, 10); freq[key] = (freq[key] || 0) + 1; });
-    const recurringDelays = Object.entries(freq)
-      .filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 3)
-      .map(([k, c]) => `"${k}…" (延期${c}次)`).join('、');
-    const rows = pastReports.map(r =>
+    const rateRows = allForStats.map(r =>
       `${r.date}：完成率${r.completionRate}%，完成${r.completedItems||0}/${r.totalItems||0}项，延期${r.delayedItems||0}项`
     ).join('\n');
+    const delayedTexts = pastReports.flatMap(r =>
+      (r.schedule || []).filter(s => s.status !== 'done').map(s => s.content || '')
+    );
+    const freq = {};
+    delayedTexts.forEach(t => { const key = t.slice(0, 12); freq[key] = (freq[key] || 0) + 1; });
+    const recurringDelays = Object.entries(freq)
+      .filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 4)
+      .map(([k, c]) => `"${k}…"×${c}次`).join('、');
+    const pastProblemExcerpts = stateReviews.slice(0, 3).map(r => {
+      const text = r.report || '';
+      const match = text.match(/##\s*问题[^\n]*([\s\S]{0,400}?)(?=\n##|$)/i);
+      const excerpt = match ? match[0].replace(/```[\s\S]*?```/g, '').trim().slice(0, 300) : '';
+      return excerpt ? `【${r.date}复盘问题摘要】\n${excerpt}` : '';
+    }).filter(Boolean).join('\n\n');
     return [
-      `近${pastReports.length}期均值完成率：${avgRate}%`, rows,
-      recurringDelays ? `反复延期的任务：${recurringDelays}` : ''
+      `▸ 近${allForStats.length}期均值完成率：${avgRate}%`,
+      rateRows,
+      recurringDelays ? `▸ 反复延期任务：${recurringDelays}` : '',
+      pastProblemExcerpts ? `\n▸ 历史复盘指出的问题（供趋势判断）：\n${pastProblemExcerpts}` : ''
     ].filter(Boolean).join('\n');
   },
 
@@ -3279,30 +3294,30 @@ Timeboxing：30/60/90min时间块，深度工作放上午，每90min缓冲。
     }).join('\n');
 
     const historyCtx = this.buildHistoricalContext('daily');
-    const systemPrompt = `你是${role}的工作数据分析师，只说数据和事实，不讨好，不鼓励，不废话。
+    const systemPrompt = `你是${role}的复盘教练。职责是帮他真正看清工作中的问题、找到迭代方向。不讨好，不泛泛鼓励，直接指出问题。
 
-【历史趋势参照】
+【历史数据与复盘趋势】
 ${historyCtx}
 
-任务：对比历史，分析本日真实问题，Markdown输出：
+基于历史趋势 + 本日数据，Markdown输出：
 
-## 趋势对比
-完成率与历史均值对比，1-2句，数字说话，点明是否改善/恶化；若有反复延期的同类任务直接指出。
+## 趋势判断
+对比历史均值，完成率/延期率是在改善还是恶化？历史复盘提过的问题本日有无变化？1-3句，数字+现象，不夸不贬。
 
 ## 关键产出
-逐项列出有交付物证据的完成项；无证据的"完成"标注"⚠️ 无证据"。
+按项目归类，列出有交付物证据的完成项。无证据的标注"⚠️ 无法核实"。
 
-## 问题直击（≤3条）
-**现象** → 根因假设 → 实际影响。只写真问题，不写泛泛建议。
+## 问题直击（≤3条，按严重程度排序）
+**[问题标签]** 现象 → 推断根因 → 实际影响。若历史已出现过，注明"第N次"。不写"建议关注"之类模糊表述。
 
-## 能力评分（0-10，严苛，历史未改善不加分）
-- 需求洞察 / 优先级判断 / 跨团队协调 / 数据驱动 / 执行收敛力：各给分+1句理由
+## 能力诊断（0-10分，历史未改善不加分）
+需求洞察 / 优先级判断 / 跨团队协调 / 数据驱动 / 执行收敛力：各给分+一句本日具体依据。
 
-## 明日行动（3条，必须对应上面问题）
-做什么 + 验收标准 + 完成时间
+## 明日迭代行动（3条，必须与问题直击一一对应）
+做什么 → 验收标准（可量化）→ 完成时间
 
 ## Knowhow提炼
-只提炼本日真实出现的新洞察。
+只提炼本日真实出现的新洞察，历史已有的不重复。
 
 末尾JSON：\`\`\`json
 {"knowhow":[{"title":"名称","content":"要点","category":"req|design|project|data|comm|biz|user|tech","tags":["标签"]}]}
